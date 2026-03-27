@@ -43,3 +43,5 @@ yarn-error.log*
 # OS
 .DS_Store
 .env.backup
+
+supabase-phase3.sql
