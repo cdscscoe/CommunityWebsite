@@ -37,88 +37,226 @@ export default function Navbar() {
   const isHome = pathname === '/'
 
   return (
-    <nav
-      className={`fixed top-0 left-0 right-0 z-[100] flex items-center justify-between backdrop-blur-md bg-[#0a1628]/90 border-b border-[#c9a84c]/20 transition-all duration-300 ${scrolled ? 'py-3' : 'py-5'} px-5 md:px-12`}
-    >
-      {/* Logo */}
-      <Link href="/" className="flex items-center gap-3 no-underline z-50">
-        <div className="w-9 h-9 rounded-lg grid place-items-center font-playfair font-black text-base text-[#0a1628]" style={{ background: 'linear-gradient(135deg, #c9a84c, #e8c97a)' }}>
-          C
-        </div>
-        <span className="font-semibold text-[0.95rem] text-[#f8f6f0] tracking-wide">
-          CDSC<span className="text-[#c9a84c]">@SCOE</span>
-        </span>
-      </Link>
+    <>
+      <style suppressHydrationWarning>{`
+        #cdsc-nav {
+          position: fixed; top: 0; left: 0; right: 0; z-index: 200;
+          height: 64px; padding: 0 1.5rem;
+          display: flex; align-items: center; justify-content: space-between;
+          transition: background .3s, border-color .3s, box-shadow .3s;
+          border-bottom: 1px solid transparent;
+          font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+        #cdsc-nav.scrolled {
+          background: rgba(11,15,25,.95);
+          backdrop-filter: blur(24px);
+          border-color: rgba(255,255,255,.07);
+          box-shadow: 0 4px 32px rgba(0,0,0,.3);
+        }
 
-      {/* Hamburger / Mobile menu toggle */}
-      <div className="md:hidden flex items-center gap-4 z-50">
-        <button 
-          className="text-[#8a9bb5] focus:outline-none" 
-          onClick={() => setMenuOpen(!menuOpen)}
-        >
-          {menuOpen ? (
-            <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
-          ) : (
-            <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16"/></svg>
-          )}
-        </button>
+        .nav-logo {
+          display: flex; align-items: center; gap: .5rem;
+          text-decoration: none; z-index: 50;
+        }
+        .nav-logo-dot {
+          width: 8px; height: 8px; border-radius: 50%; background: #FBBF24;
+        }
+        .nav-logo-text {
+          font-family: 'DM Mono', monospace; font-size: .92rem;
+          font-weight: 500; color: #F1F5FF; letter-spacing: .04em;
+        }
+        .nav-logo-text span { color: #FBBF24; }
+
+        /* Desktop links */
+        .nav-links {
+          display: flex; align-items: center; gap: .2rem;
+        }
+        .nav-link {
+          font-size: .82rem; font-weight: 500; color: #94A3C4;
+          text-decoration: none; padding: .4rem .75rem; border-radius: 6px;
+          transition: color .15s, background .15s;
+          letter-spacing: .01em;
+        }
+        .nav-link:hover { color: #F1F5FF; background: rgba(255,255,255,.06); }
+
+        /* Right side */
+        .nav-right { display: flex; align-items: center; gap: .75rem; }
+
+        .nav-signin {
+          font-size: .82rem; color: #94A3C4; text-decoration: none;
+          transition: color .15s;
+        }
+        .nav-signin:hover { color: #F1F5FF; }
+
+        .nav-cta {
+          display: inline-flex; align-items: center; gap: .4rem;
+          background: linear-gradient(90deg, #F97316, #FBBF24);
+          color: #0B0F19; font-weight: 700; font-size: .82rem;
+          padding: .52rem 1.15rem; border-radius: 20px;
+          text-decoration: none; min-height: 36px;
+          box-shadow: 0 2px 16px rgba(249,115,22,.3);
+          transition: opacity .15s, transform .1s, box-shadow .2s;
+        }
+        .nav-cta:hover {
+          opacity: .9; transform: translateY(-1px);
+          box-shadow: 0 4px 24px rgba(249,115,22,.45);
+        }
+
+        .nav-dashboard {
+          display: inline-flex; align-items: center; gap: .4rem;
+          border: 1px solid rgba(255,255,255,.12);
+          color: #F1F5FF; font-weight: 600; font-size: .82rem;
+          padding: .52rem 1.15rem; border-radius: 20px;
+          text-decoration: none; min-height: 36px;
+          background: rgba(255,255,255,.06);
+          transition: background .15s, border-color .15s;
+        }
+        .nav-dashboard:hover { background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.2); }
+
+        .nav-signout {
+          font-size: .78rem; color: #94A3C4; background: none;
+          border: none; cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif;
+          transition: color .15s; padding: .3rem .2rem;
+        }
+        .nav-signout:hover { color: #F87171; }
+
+        /* Hamburger */
+        .nav-hamburger {
+          display: none; align-items: center; justify-content: center;
+          width: 36px; height: 36px; border-radius: 9px;
+          background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1);
+          cursor: pointer; color: #94A3C4; z-index: 50;
+        }
+        .nav-hamburger:hover { background: rgba(255,255,255,.1); }
+
+        /* Mobile full-screen menu */
+        #mobile-menu {
+          position: fixed; inset: 0; z-index: 190;
+          background: rgba(11,15,25,.98); backdrop-filter: blur(20px);
+          display: flex; flex-direction: column;
+          align-items: center; justify-content: center; gap: 1.5rem;
+          transform: translateY(-100%);
+          transition: transform .35s cubic-bezier(.16,1,.3,1);
+        }
+        #mobile-menu.open { transform: translateY(0); }
+
+        .mob-link {
+          font-family: 'Syne', sans-serif; font-size: 2rem; font-weight: 800;
+          color: #94A3C4; text-decoration: none; transition: color .15s;
+        }
+        .mob-link:hover { color: #F1F5FF; }
+
+        .mob-cta {
+          display: inline-flex; align-items: center; gap: .5rem;
+          background: linear-gradient(90deg, #F97316, #FBBF24);
+          color: #0B0F19; font-weight: 700; font-size: .95rem;
+          padding: .9rem 2rem; border-radius: 28px; text-decoration: none;
+          margin-top: .5rem; box-shadow: 0 4px 24px rgba(249,115,22,.35);
+        }
+
+        .mob-dashboard {
+          display: inline-flex; align-items: center; gap: .5rem;
+          border: 1px solid rgba(255,255,255,.14);
+          color: #F1F5FF; font-weight: 600; font-size: .95rem;
+          padding: .9rem 2rem; border-radius: 28px; text-decoration: none;
+          background: rgba(255,255,255,.07); margin-top: .5rem;
+        }
+
+        .mob-signout {
+          font-size: .85rem; color: #F87171; background: none; border: none;
+          cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+
+        @media (max-width: 820px) {
+          .nav-links  { display: none !important; }
+          .nav-signin { display: none !important; }
+          .nav-cta    { display: none !important; }
+          .nav-dashboard { display: none !important; }
+          .nav-signout   { display: none !important; }
+          .nav-hamburger { display: flex !important; }
+        }
+      `}</style>
+
+      {/* Mobile full-screen menu */}
+      <div id="mobile-menu" className={menuOpen ? 'open' : ''}>
+        {isHome ? (
+          <>
+            <a href="#what"      className="mob-link" onClick={() => setMenuOpen(false)}>About</a>
+            <a href="#domains"   className="mob-link" onClick={() => setMenuOpen(false)}>Domains</a>
+            <a href="#team"      className="mob-link" onClick={() => setMenuOpen(false)}>Team</a>
+            <a href="#timeline"  className="mob-link" onClick={() => setMenuOpen(false)}>Timeline</a>
+            <a href="#resources" className="mob-link" onClick={() => setMenuOpen(false)}>Resources</a>
+          </>
+        ) : (
+          <>
+            <Link href="/#what"      className="mob-link" onClick={() => setMenuOpen(false)}>About</Link>
+            <Link href="/#domains"   className="mob-link" onClick={() => setMenuOpen(false)}>Domains</Link>
+            <Link href="/#resources" className="mob-link" onClick={() => setMenuOpen(false)}>Resources</Link>
+          </>
+        )}
+        {user ? (
+          <>
+            <Link href="/dashboard" className="mob-dashboard" onClick={() => setMenuOpen(false)}>Dashboard</Link>
+            <button className="mob-signout" onClick={() => { handleSignOut(); setMenuOpen(false) }}>Sign Out</button>
+          </>
+        ) : (
+          <>
+            <Link href="/auth/login"  className="mob-link" style={{fontSize:'1.2rem'}} onClick={() => setMenuOpen(false)}>Sign In</Link>
+            <Link href="/auth/signup" className="mob-cta" onClick={() => setMenuOpen(false)}>Apply Free →</Link>
+          </>
+        )}
       </div>
 
-      {/* Navigation Links and Auth */}
-      <div className={`absolute md:static top-full left-0 w-full md:w-auto bg-[#0a1628] md:bg-transparent border-b md:border-none border-[#c9a84c]/20 flex-col md:flex-row items-center gap-6 md:gap-8 px-5 py-8 md:p-0 transition-transform md:translate-y-0 ${menuOpen ? 'translate-y-0 flex shadow-2xl' : '-translate-y-[200%] hidden md:flex'}`}>
-        
-        {/* Links */}
-        <ul className="flex flex-col md:flex-row items-center gap-6 md:gap-8 list-none w-full md:w-auto">
+      {/* Main nav bar */}
+      <nav id="cdsc-nav" className={scrolled ? 'scrolled' : ''}>
+        {/* Logo */}
+        <Link href="/" className="nav-logo">
+          <span className="nav-logo-dot" />
+          <span className="nav-logo-text">CDSC<span>@SCOE</span></span>
+        </Link>
+
+        {/* Desktop links */}
+        <div className="nav-links">
           {isHome ? (
             <>
-              <li><a href="#about" onClick={() => setMenuOpen(false)} style={linkStyle}>About</a></li>
-              <li><a href="#domains" onClick={() => setMenuOpen(false)} style={linkStyle}>Domains</a></li>
-              <li><a href="#team" onClick={() => setMenuOpen(false)} style={linkStyle}>Team</a></li>
-              <li><a href="#timeline" onClick={() => setMenuOpen(false)} style={linkStyle}>Timeline</a></li>
-              <li><a href="#resources" onClick={() => setMenuOpen(false)} style={linkStyle}>Resources</a></li>
+              <a href="#what"      className="nav-link">About</a>
+              <a href="#domains"   className="nav-link">Domains</a>
+              <a href="#team"      className="nav-link">Team</a>
+              <a href="#timeline"  className="nav-link">Timeline</a>
+              <a href="#resources" className="nav-link">Resources</a>
             </>
           ) : (
             <>
-              <li><Link href="/#about" onClick={() => setMenuOpen(false)} style={linkStyle}>About</Link></li>
-              <li><Link href="/#domains" onClick={() => setMenuOpen(false)} style={linkStyle}>Domains</Link></li>
-              <li><Link href="/#resources" onClick={() => setMenuOpen(false)} style={linkStyle}>Resources</Link></li>
-            </>
-          )}
-        </ul>
-
-        {/* Auth Buttons */}
-        <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto mt-4 md:mt-0 pt-6 md:pt-0 border-t md:border-none border-white/5">
-          {user ? (
-            <>
-              <Link href="/dashboard" className="btn-outline-gold w-full md:w-auto text-center" onClick={() => setMenuOpen(false)}>
-                Dashboard
-              </Link>
-              <button onClick={() => { handleSignOut(); setMenuOpen(false); }} className="text-[#8a9bb5] hover:text-[#c9a84c] text-[0.82rem] transition-colors py-2">
-                Sign Out
-              </button>
-            </>
-          ) : (
-            <>
-              <Link href="/auth/login" className="text-[#8a9bb5] hover:text-[#f8f6f0] text-[0.85rem] transition-colors py-2" onClick={() => setMenuOpen(false)}>
-                Sign In
-              </Link>
-              <Link href="/auth/signup" className="btn-primary w-full md:w-auto text-center py-2 px-5" onClick={() => setMenuOpen(false)}>
-                Join Now →
-              </Link>
+              <Link href="/#what"      className="nav-link">About</Link>
+              <Link href="/#domains"   className="nav-link">Domains</Link>
+              <Link href="/#resources" className="nav-link">Resources</Link>
             </>
           )}
         </div>
-      </div>
-    </nav>
-  )
-}
 
-const linkStyle: React.CSSProperties = {
-  color: '#8a9bb5',
-  textDecoration: 'none',
-  fontSize: '0.82rem',
-  fontWeight: 500,
-  letterSpacing: '0.8px',
-  textTransform: 'uppercase',
-  transition: 'color 0.2s',
+        {/* Right side */}
+        <div className="nav-right">
+          {user ? (
+            <>
+              <Link href="/dashboard" className="nav-dashboard">Dashboard</Link>
+              <button className="nav-signout" onClick={handleSignOut}>Sign Out</button>
+            </>
+          ) : (
+            <>
+              <Link href="/auth/login"  className="nav-signin">Sign In</Link>
+              <Link href="/auth/signup" className="nav-cta">Apply Free →</Link>
+            </>
+          )}
+
+          {/* Hamburger */}
+          <button className="nav-hamburger" onClick={() => setMenuOpen(v => !v)}>
+            {menuOpen
+              ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              : <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            }
+          </button>
+        </div>
+      </nav>
+    </>
+  )
 }
