@@ -21,19 +21,17 @@ export const metadata: Metadata = {
   },
 }
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        {/* ONE font link for the entire app — nowhere else */}
         <link
-          href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;900&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap"
-          rel="stylesheet"
-        />
+  href="https://fonts.googleapis.com/css2?family=Outfit:wght@700;800;900&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Mono:wght@400;500&display=swap"
+  rel="stylesheet"
+/>
       </head>
       <body className="noise-overlay">{children}</body>
     </html>

@@ -21,6 +21,16 @@ const DOMAIN_ICONS: Record<string, string> = {
 const YEARS = ['All Years', 'First Year (FE)', 'Second Year (SE)', 'Third Year (TE)', 'Final Year (BE)']
 const DOMAINS_FILTER = ['All Domains', 'DSA & Competitive Coding', 'Web Development', 'Machine Learning & AI', 'Cybersecurity', 'UI/UX Design', 'Cloud & DevOps', 'Game Development', 'GATE Preparation']
 
+// Gradient pool for avatar backgrounds
+const GRAD_POOL = [
+  'linear-gradient(135deg,#6366F1,#8B5CF6)',
+  'linear-gradient(135deg,#F97316,#FBBF24)',
+  'linear-gradient(135deg,#EC4899,#F472B6)',
+  'linear-gradient(135deg,#06B6D4,#6366F1)',
+  'linear-gradient(135deg,#10B981,#06B6D4)',
+  'linear-gradient(135deg,#F59E0B,#EF4444)',
+]
+
 interface Member {
   id: string
   full_name: string
@@ -35,6 +45,14 @@ interface Member {
   created_at: string
 }
 
+const T = {
+  bg: '#0B0F19', card: 'rgba(22,29,48,0.75)',
+  border: 'rgba(255,255,255,0.08)', border2: 'rgba(255,255,255,0.12)',
+  text: '#F1F5FF', text2: '#94A3C4', text3: 'rgba(148,163,196,0.45)',
+  gold: '#FBBF24', indigo: '#6366F1', green: '#4ADE80',
+  heading: "'Outfit', sans-serif", body: "'DM Sans', sans-serif", mono: "'DM Mono', monospace",
+}
+
 export default function MemberDirectory() {
   const [members, setMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
@@ -44,16 +62,10 @@ export default function MemberDirectory() {
   const supabase = createClient()
 
   useEffect(() => {
-    const fetchMembers = async () => {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, full_name, year, roll_no, bio, domains, avatar_url, linkedin_url, github_url, is_admin, created_at')
-        .order('created_at', { ascending: true })
-
-      if (!error && data) setMembers(data)
-      setLoading(false)
-    }
-    fetchMembers()
+    supabase.from('profiles')
+      .select('id,full_name,year,roll_no,bio,domains,avatar_url,linkedin_url,github_url,is_admin,created_at')
+      .order('created_at', { ascending: true })
+      .then(({ data }) => { if (data) setMembers(data); setLoading(false) })
   }, [])
 
   const filtered = members.filter(m => {
@@ -66,167 +78,146 @@ export default function MemberDirectory() {
   const initials = (name: string) =>
     (name || '?').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
 
+  const avatarGrad = (id: string) =>
+    GRAD_POOL[id.charCodeAt(0) % GRAD_POOL.length]
+
+  const hasFilters = search || yearFilter !== 'All Years' || domainFilter !== 'All Domains'
+
   return (
-    <div>
+    <div style={{ fontFamily: T.body, color: T.text }}>
+      <style>{`
+        .mdir-input:focus { border-color: rgba(99,102,241,.6) !important; box-shadow: 0 0 0 3px rgba(99,102,241,.1) !important; }
+        .mdir-card:hover { border-color: rgba(255,255,255,.15) !important; transform: translateY(-2px) !important; }
+        .mdir-link:hover { border-color: rgba(99,102,241,.5) !important; color: #A5B4FC !important; }
+        @keyframes shimmer { 0%,100%{opacity:.4} 50%{opacity:.8} }
+        .mdir-skeleton { animation: shimmer 1.5s ease-in-out infinite; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.07); border-radius: 12px; }
+        @media(max-width:640px) {
+          .mdir-filters { flex-direction: column !important; }
+          .mdir-grid { grid-template-columns: 1fr !important; }
+        }
+        @media(min-width:641px) and (max-width:960px) {
+          .mdir-grid { grid-template-columns: repeat(2,1fr) !important; }
+        }
+      `}</style>
+
       {/* Header */}
-      <div style={{ marginBottom: '2rem' }}>
-        <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.7rem', color: '#c9a84c', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '0.4rem' }}>
+      <div style={{ marginBottom: '1.75rem' }}>
+        <div style={{ fontFamily: T.mono, fontSize: '.65rem', color: T.indigo, letterSpacing: '.12em', textTransform: 'uppercase', marginBottom: '.5rem' }}>
           // Member Directory
         </div>
-        <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.8rem', fontWeight: 700, color: '#f8f6f0' }}>
+        <h1 style={{ fontFamily: T.heading, fontWeight: 800, fontSize: 'clamp(1.5rem,4vw,2rem)', color: T.text, letterSpacing: '-.02em', lineHeight: 1.1 }}>
           Community Members
         </h1>
-        <p style={{ color: '#8a9bb5', marginTop: '0.4rem', fontSize: '0.85rem' }}>
-          {loading ? 'Loading...' : `${members.length} verified members`}
+        <p style={{ color: T.text2, marginTop: '.35rem', fontSize: '.85rem' }}>
+          {loading ? 'Loading...' : `${members.length} verified members of CDSC@SCOE`}
         </p>
       </div>
 
       {/* Filters */}
-      <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '2rem', flexWrap: 'wrap', alignItems: 'center' }}>
-        {/* Search */}
+      <div className="mdir-filters" style={{ display: 'flex', gap: '.75rem', marginBottom: '1.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
         <input
           value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder="🔍  Search by name..."
+          placeholder="Search by name..."
+          className="mdir-input"
           style={{
-            flex: '1', minWidth: 200,
-            padding: '0.6rem 1rem',
-            background: 'rgba(255,255,255,0.04)',
-            border: '1px solid rgba(201,168,76,0.2)',
-            borderRadius: 6, color: '#f8f6f0',
-            fontSize: '0.85rem', outline: 'none',
+            flex: 1, minWidth: 180, padding: '.7rem 1rem',
+            background: 'rgba(255,255,255,.04)', border: `1px solid ${T.border2}`,
+            borderRadius: 8, color: T.text, fontFamily: T.body, fontSize: '.85rem', outline: 'none',
+            transition: 'border-color .2s, box-shadow .2s',
           }}
-          onFocus={e => (e.currentTarget.style.borderColor = '#c9a84c')}
-          onBlur={e => (e.currentTarget.style.borderColor = 'rgba(201,168,76,0.2)')}
         />
-
-        {/* Year filter */}
-        <select
-          value={yearFilter}
-          onChange={e => setYearFilter(e.target.value)}
-          style={{
-            padding: '0.6rem 1rem', minWidth: 160,
-            background: '#112240',
-            border: '1px solid rgba(201,168,76,0.2)',
-            borderRadius: 6, color: yearFilter === 'All Years' ? '#8a9bb5' : '#c9a84c',
-            fontSize: '0.82rem', outline: 'none', cursor: 'pointer',
-          }}
-        >
-          {YEARS.map(y => <option key={y} value={y} style={{ background: '#112240' }}>{y}</option>)}
+        <select value={yearFilter} onChange={e => setYearFilter(e.target.value)} className="mdir-input" style={{
+          padding: '.7rem 1rem', minWidth: 150,
+          background: 'rgba(22,29,48,.9)', border: `1px solid ${T.border2}`,
+          borderRadius: 8, color: yearFilter === 'All Years' ? T.text2 : T.text,
+          fontSize: '.82rem', outline: 'none', cursor: 'pointer', fontFamily: T.body,
+        }}>
+          {YEARS.map(y => <option key={y} value={y} style={{ background: '#161D30' }}>{y}</option>)}
         </select>
-
-        {/* Domain filter */}
-        <select
-          value={domainFilter}
-          onChange={e => setDomainFilter(e.target.value)}
-          style={{
-            padding: '0.6rem 1rem', minWidth: 200,
-            background: '#112240',
-            border: '1px solid rgba(201,168,76,0.2)',
-            borderRadius: 6, color: domainFilter === 'All Domains' ? '#8a9bb5' : '#c9a84c',
-            fontSize: '0.82rem', outline: 'none', cursor: 'pointer',
-          }}
-        >
-          {DOMAINS_FILTER.map(d => <option key={d} value={d} style={{ background: '#112240' }}>{d}</option>)}
+        <select value={domainFilter} onChange={e => setDomainFilter(e.target.value)} className="mdir-input" style={{
+          padding: '.7rem 1rem', minWidth: 180,
+          background: 'rgba(22,29,48,.9)', border: `1px solid ${T.border2}`,
+          borderRadius: 8, color: domainFilter === 'All Domains' ? T.text2 : T.text,
+          fontSize: '.82rem', outline: 'none', cursor: 'pointer', fontFamily: T.body,
+        }}>
+          {DOMAINS_FILTER.map(d => <option key={d} value={d} style={{ background: '#161D30' }}>{d}</option>)}
         </select>
-
-        {/* Clear filters */}
-        {(search || yearFilter !== 'All Years' || domainFilter !== 'All Domains') && (
-          <button
-            onClick={() => { setSearch(''); setYearFilter('All Years'); setDomainFilter('All Domains') }}
-            style={{
-              padding: '0.6rem 1rem', background: 'transparent',
-              border: '1px solid rgba(239,68,68,0.3)',
-              borderRadius: 6, color: '#fca5a5',
-              fontSize: '0.78rem', cursor: 'pointer',
-            }}
-          >
-            ✕ Clear
-          </button>
+        {hasFilters && (
+          <button onClick={() => { setSearch(''); setYearFilter('All Years'); setDomainFilter('All Domains') }} style={{
+            padding: '.7rem 1rem', background: 'transparent', border: '1px solid rgba(248,113,113,.3)',
+            borderRadius: 8, color: '#FCA5A5', fontSize: '.8rem', cursor: 'pointer', fontFamily: T.body,
+            whiteSpace: 'nowrap',
+          }}>✕ Clear</button>
         )}
       </div>
 
       {/* Results count */}
-      {!loading && (search || yearFilter !== 'All Years' || domainFilter !== 'All Domains') && (
-        <p style={{ color: '#8a9bb5', fontSize: '0.8rem', marginBottom: '1.25rem', fontFamily: "'DM Mono', monospace" }}>
-          Showing {filtered.length} of {members.length} members
+      {!loading && hasFilters && (
+        <p style={{ fontFamily: T.mono, color: T.text3, fontSize: '.68rem', letterSpacing: '.08em', marginBottom: '1.25rem' }}>
+          SHOWING {filtered.length} OF {members.length}
         </p>
       )}
 
-      {/* Loading skeleton */}
+      {/* Loading skeletons */}
       {loading && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
-          {[...Array(6)].map((_, i) => (
-            <div key={i} style={{
-              background: 'rgba(255,255,255,0.02)',
-              border: '1px solid rgba(201,168,76,0.1)',
-              borderRadius: 8, padding: '1.5rem', height: 180,
-              animation: 'pulse 1.5s infinite',
-            }} />
-          ))}
+        <div className="mdir-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '1rem' }}>
+          {[...Array(6)].map((_, i) => <div key={i} className="mdir-skeleton" style={{ height: 180 }} />)}
         </div>
       )}
 
-      {/* Empty state */}
+      {/* Empty */}
       {!loading && filtered.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '4rem 2rem', color: '#8a9bb5' }}>
-          <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>🔍</div>
-          <p>No members match your filters.</p>
+        <div style={{ textAlign: 'center', padding: '4rem 2rem' }}>
+          <div style={{ fontFamily: T.mono, fontSize: '.68rem', color: T.text3, letterSpacing: '.1em' }}>NO MEMBERS FOUND</div>
         </div>
       )}
 
-      {/* Member Grid */}
+      {/* Grid */}
       {!loading && filtered.length > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
+        <div className="mdir-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '1rem' }}>
           {filtered.map(member => (
             <div
               key={member.id}
+              className="mdir-card"
               style={{
-                background: 'rgba(255,255,255,0.02)',
-                border: '1px solid rgba(201,168,76,0.15)',
-                borderRadius: 8, padding: '1.5rem',
-                transition: 'all 0.2s', position: 'relative',
-              }}
-              onMouseEnter={e => {
-                (e.currentTarget as HTMLElement).style.borderColor = 'rgba(201,168,76,0.4)'
-                ;(e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)'
-              }}
-              onMouseLeave={e => {
-                (e.currentTarget as HTMLElement).style.borderColor = 'rgba(201,168,76,0.15)'
-                ;(e.currentTarget as HTMLElement).style.transform = 'translateY(0)'
+                background: T.card, backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
+                border: `1px solid ${T.border}`, borderRadius: 14, padding: '1.25rem',
+                transition: 'border-color .25s, transform .25s, box-shadow .25s',
+                position: 'relative', display: 'flex', flexDirection: 'column', gap: '.9rem',
               }}
             >
               {/* Admin badge */}
               {member.is_admin && (
                 <div style={{
-                  position: 'absolute', top: '0.75rem', right: '0.75rem',
-                  fontFamily: "'DM Mono', monospace", fontSize: '0.58rem',
-                  color: '#c9a84c', border: '1px solid rgba(201,168,76,0.4)',
-                  padding: '0.1rem 0.45rem', borderRadius: 2, letterSpacing: '1px',
+                  position: 'absolute', top: '.75rem', right: '.75rem',
+                  fontFamily: T.mono, fontSize: '.55rem', color: T.gold,
+                  border: '1px solid rgba(251,191,36,.3)', padding: '.12rem .45rem',
+                  borderRadius: 4, letterSpacing: '.08em', background: 'rgba(251,191,36,.08)',
                 }}>ADMIN</div>
               )}
 
               {/* Avatar + Name */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', marginBottom: '0.85rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '.9rem' }}>
                 <div style={{
-                  width: 46, height: 46, borderRadius: '50%', flexShrink: 0,
-                  background: 'linear-gradient(135deg, #1a3a6b, #112240)',
-                  border: '1.5px solid rgba(201,168,76,0.25)',
+                  width: 44, height: 44, borderRadius: 12, flexShrink: 0,
+                  background: avatarGrad(member.id),
                   display: 'grid', placeItems: 'center',
-                  fontFamily: "'Playfair Display', serif",
-                  fontWeight: 700, fontSize: '1rem', color: '#c9a84c',
-                  overflow: 'hidden',
+                  fontFamily: T.heading, fontWeight: 800, fontSize: '.95rem', color: '#fff',
+                  overflow: 'hidden', boxShadow: '0 4px 12px rgba(0,0,0,.35)',
                 }}>
                   {member.avatar_url
                     ? <img src={member.avatar_url} alt={member.full_name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     : initials(member.full_name || '')}
                 </div>
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#f8f6f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <div style={{ fontWeight: 700, fontSize: '.92rem', color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {member.full_name || 'CDSC Member'}
                   </div>
-                  <div style={{ fontSize: '0.72rem', color: '#8a9bb5', fontFamily: "'DM Mono', monospace" }}>
-                    {member.year ? member.year.replace(' Year', '').replace('First (FE)', 'FE').replace('Second (SE)', 'SE').replace('Third (TE)', 'TE').replace('Final (BE)', 'BE') : 'SCOE'}
+                  <div style={{ fontFamily: T.mono, fontSize: '.65rem', color: T.text3 }}>
+                    {member.year
+                      ? member.year.replace('First Year (FE)', 'FE').replace('Second Year (SE)', 'SE').replace('Third Year (TE)', 'TE').replace('Final Year (BE)', 'BE')
+                      : 'SCOE'}
                     {member.roll_no ? ` · ${member.roll_no}` : ''}
                   </div>
                 </div>
@@ -235,8 +226,7 @@ export default function MemberDirectory() {
               {/* Bio */}
               {member.bio && (
                 <p style={{
-                  fontSize: '0.78rem', color: '#8a9bb5',
-                  lineHeight: 1.6, marginBottom: '0.85rem',
+                  fontSize: '.8rem', color: T.text2, lineHeight: 1.65,
                   display: '-webkit-box', WebkitLineClamp: 2,
                   WebkitBoxOrient: 'vertical', overflow: 'hidden',
                 }}>
@@ -244,57 +234,40 @@ export default function MemberDirectory() {
                 </p>
               )}
 
-              {/* Domain tags */}
+              {/* Domain chips */}
               {(member.domains || []).length > 0 && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', marginBottom: '0.85rem' }}>
-                  {(member.domains || []).slice(0, 3).map((d: string) => (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.3rem' }}>
+                  {(member.domains || []).slice(0, 3).map(d => (
                     <span key={d} style={{
-                      fontSize: '0.65rem', padding: '0.2rem 0.5rem',
-                      border: '1px solid rgba(201,168,76,0.2)',
-                      borderRadius: 3, color: '#c9a84c',
-                      fontFamily: "'DM Mono', monospace",
+                      fontSize: '.62rem', padding: '.15rem .45rem',
+                      border: '1px solid rgba(99,102,241,.25)',
+                      borderRadius: 4, color: '#A5B4FC', fontFamily: T.mono,
+                      background: 'rgba(99,102,241,.08)',
                     }}>
                       {DOMAIN_ICONS[d] || '📌'} {d.split(' ')[0]}
                     </span>
                   ))}
                   {(member.domains || []).length > 3 && (
-                    <span style={{ fontSize: '0.65rem', color: '#8a9bb5', padding: '0.2rem 0.3rem' }}>
-                      +{member.domains.length - 3}
-                    </span>
+                    <span style={{ fontSize: '.62rem', color: T.text3, padding: '.15rem .3rem' }}>+{member.domains.length - 3}</span>
                   )}
                 </div>
               )}
 
-              {/* Social links */}
-              <div style={{ display: 'flex', gap: '0.5rem', marginTop: 'auto' }}>
+              {/* Footer */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '.4rem', marginTop: 'auto' }}>
                 {member.linkedin_url && (
-                  <a href={member.linkedin_url} target="_blank" rel="noreferrer" style={{
-                    fontSize: '0.72rem', color: '#8a9bb5', textDecoration: 'none',
-                    padding: '0.25rem 0.6rem',
-                    border: '1px solid rgba(138,155,181,0.2)', borderRadius: 3,
-                    transition: 'all 0.15s',
-                  }}
-                    onMouseEnter={e => { e.currentTarget.style.borderColor = '#c9a84c'; e.currentTarget.style.color = '#c9a84c' }}
-                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(138,155,181,0.2)'; e.currentTarget.style.color = '#8a9bb5' }}>
-                    in
-                  </a>
+                  <a href={member.linkedin_url} target="_blank" rel="noreferrer" className="mdir-link" style={{
+                    fontFamily: T.mono, fontSize: '.65rem', color: T.text3, textDecoration: 'none',
+                    padding: '.2rem .5rem', border: `1px solid ${T.border}`, borderRadius: 5, transition: 'all .15s',
+                  }}>in</a>
                 )}
                 {member.github_url && (
-                  <a href={member.github_url} target="_blank" rel="noreferrer" style={{
-                    fontSize: '0.72rem', color: '#8a9bb5', textDecoration: 'none',
-                    padding: '0.25rem 0.6rem',
-                    border: '1px solid rgba(138,155,181,0.2)', borderRadius: 3,
-                    transition: 'all 0.15s',
-                  }}
-                    onMouseEnter={e => { e.currentTarget.style.borderColor = '#c9a84c'; e.currentTarget.style.color = '#c9a84c' }}
-                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(138,155,181,0.2)'; e.currentTarget.style.color = '#8a9bb5' }}>
-                    gh
-                  </a>
+                  <a href={member.github_url} target="_blank" rel="noreferrer" className="mdir-link" style={{
+                    fontFamily: T.mono, fontSize: '.65rem', color: T.text3, textDecoration: 'none',
+                    padding: '.2rem .5rem', border: `1px solid ${T.border}`, borderRadius: 5, transition: 'all .15s',
+                  }}>gh</a>
                 )}
-                <span style={{
-                  marginLeft: 'auto', fontSize: '0.65rem', color: '#8a9bb5',
-                  fontFamily: "'DM Mono', monospace",
-                }}>
+                <span style={{ marginLeft: 'auto', fontFamily: T.mono, fontSize: '.62rem', color: T.text3 }}>
                   {new Date(member.created_at).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}
                 </span>
               </div>
