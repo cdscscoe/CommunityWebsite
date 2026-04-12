@@ -116,7 +116,7 @@ export default function DashboardClient({ user }: { user: User }) {
 
   return (
     <div style={{ minHeight:'100vh', background:S.bg, color:S.text, fontFamily:S.outfit, display:'flex', WebkitFontSmoothing:'antialiased' } as React.CSSProperties}>
-      <style>{`
+      <style suppressHydrationWarning>{`
         *{box-sizing:border-box;margin:0;padding:0;}
         @keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
         @keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
