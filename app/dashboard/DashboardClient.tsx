@@ -28,307 +28,418 @@ interface ProfileData {
 interface Announcement { id: string; title: string; body: string; tag: string; created_at: string }
 interface Resource { id: string; title: string; domain: string; type: string; url: string; is_public: boolean }
 
+// ── design tokens ─────────────────────────────────────────────────────────────
+const S = {
+  bg:      '#0B0F19',
+  bg2:     '#0F1629',
+  bg3:     '#131B2E',
+  card:    '#161D30',
+  card2:   '#1C2540',
+  border:  'rgba(255,255,255,0.07)',
+  border2: 'rgba(255,255,255,0.12)',
+  text:    '#F1F5FF',
+  text2:   '#94A3C4',
+  text3:   'rgba(148,163,196,0.45)',
+  gold:    '#FBBF24',
+  gold2:   '#F97316',
+  green:   '#4ADE80',
+  red:     '#F87171',
+  outfit:  "'Outfit', sans-serif",
+  mono:    "'DM Mono', monospace",
+} as const
+
 export default function DashboardClient({ user }: { user: User }) {
-  const [tab, setTab] = useState<Tab>('home')
-  const [profile, setProfile] = useState<ProfileData | null>(null)
-  const [isAdmin, setIsAdmin] = useState(false)
+  const [tab, setTab]               = useState<Tab>('home')
+  const [profile, setProfile]       = useState<ProfileData | null>(null)
+  const [isAdmin, setIsAdmin]       = useState(false)
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
-  const [resources, setResources] = useState<Resource[]>([])
+  const [resources, setResources]   = useState<Resource[]>([])
   const [loadingData, setLoadingData] = useState(true)
-  const [currentUser, setCurrentUser] = useState<User | null>(user)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const supabase = createClient()
 
-  // FIX 5: Use useEffect with no redirect logic - just fetch data
   useEffect(() => {
     const load = async () => {
       try {
-        // Verify user is still authenticated
         const { data: { user: authUser } } = await supabase.auth.getUser()
-        if (!authUser) {
-          // User logged out, but let middleware handle redirect
-          setCurrentUser(null)
-          return
-        }
-        setCurrentUser(authUser)
+        if (!authUser) return
 
-        console.log('📊 Dashboard loading for user:', authUser.id)
         const { data: prof, error } = await supabase
           .from('profiles')
-          .select('full_name, year, roll_no, bio, linkedin_url, github_url, domains, is_admin')
+          .select('full_name,year,roll_no,bio,linkedin_url,github_url,domains,is_admin')
           .eq('id', authUser.id)
           .single()
 
-        console.log('👤 Profile fetch result:', { data: prof, error: error?.message })
-
         if (!error && prof) {
-          console.log('✅ Profile exists, setting data')
-          setProfile({
-            full_name: prof.full_name || '',
-            year: prof.year || '',
-            roll_no: prof.roll_no || '',
-            bio: prof.bio || '',
-            linkedin_url: prof.linkedin_url || '',
-            github_url: prof.github_url || '',
-            domains: prof.domains || [],
-          })
+          setProfile({ full_name: prof.full_name||'', year: prof.year||'', roll_no: prof.roll_no||'', bio: prof.bio||'', linkedin_url: prof.linkedin_url||'', github_url: prof.github_url||'', domains: prof.domains||[] })
           setIsAdmin(prof.is_admin || false)
         } else {
-          // Profile doesn't exist yet, create one from user metadata
-          console.log('⚠️ Profile not found, creating new one')
           const meta = authUser.user_metadata
-          const newProfile = {
-            full_name: meta?.full_name || authUser.email?.split('@')[0] || '',
-            year: meta?.year || '',
-            roll_no: meta?.roll_no || '',
-            bio: '',
-            linkedin_url: '',
-            github_url: '',
-            domains: meta?.domains || [],
-          }
-          setProfile(newProfile)
-          
-          // Try to create the profile
-          const createRes = await supabase.from('profiles').insert({
-            id: authUser.id,
-            full_name: newProfile.full_name,
-            year: newProfile.year,
-            roll_no: newProfile.roll_no,
-            domains: newProfile.domains,
-            avatar_url: meta?.avatar_url,
-          }).select().single()
-          console.log('📝 Profile creation result:', createRes)
+          const np = { full_name: meta?.full_name||authUser.email?.split('@')[0]||'', year: meta?.year||'', roll_no: meta?.roll_no||'', bio:'', linkedin_url:'', github_url:'', domains: meta?.domains||[] }
+          setProfile(np)
+          await supabase.from('profiles').insert({ id: authUser.id, full_name: np.full_name, year: np.year, roll_no: np.roll_no, domains: np.domains, avatar_url: meta?.avatar_url })
         }
 
         const [annRes, resRes] = await Promise.all([
-          supabase.from('announcements').select('*').order('created_at', { ascending: false }).limit(10),
-          supabase.from('resources').select('*').order('created_at', { ascending: false }),
+          supabase.from('announcements').select('*').order('created_at',{ascending:false}).limit(10),
+          supabase.from('resources').select('*').order('created_at',{ascending:false}),
         ])
-        console.log('📢 Announcements:', annRes.data?.length, 'Resources:', resRes.data?.length)
         if (annRes.data) setAnnouncements(annRes.data)
         if (resRes.data) setResources(resRes.data)
-      } catch (err) {
-        console.error('❌ Dashboard load error:', err)
-      }
+      } catch (e) { console.error(e) }
       setLoadingData(false)
     }
     load()
   }, [])
 
-  const handleSignOut = async () => {
-    await supabase.auth.signOut()
-    // FIX 4: Use hard navigation for sign out too
-    window.location.href = '/'
-  }
+  const handleSignOut = async () => { await supabase.auth.signOut(); window.location.href = '/' }
 
-  const name = profile?.full_name || user.email?.split('@')[0] || 'Member'
-  const avatar = user.user_metadata?.avatar_url || null
-  const initials = name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
-  const domains = profile?.domains || []
+  const name     = profile?.full_name || user.email?.split('@')[0] || 'Member'
+  const avatar   = user.user_metadata?.avatar_url || null
+  const initials = name.split(' ').map((n:string)=>n[0]).join('').toUpperCase().slice(0,2)
+  const domains  = profile?.domains || []
 
-  const navItems: { id: Tab; icon: string; label: string; adminOnly?: boolean }[] = [
-    { id: 'home', icon: '⊞', label: 'Overview' },
-    { id: 'resources', icon: '📚', label: 'Resources' },
-    { id: 'directory', icon: '👥', label: 'Directory' },
-    { id: 'profile', icon: '👤', label: 'My Profile' },
-    ...(isAdmin ? [{ id: 'admin' as Tab, icon: '⚙️', label: 'Admin', adminOnly: true }] : []),
+  const navItems: { id:Tab; label:string; adminOnly?:boolean }[] = [
+    { id:'home',      label:'Overview'  },
+    { id:'resources', label:'Resources' },
+    { id:'directory', label:'Directory' },
+    { id:'profile',   label:'My Profile'},
+    ...(isAdmin?[{id:'admin' as Tab,label:'Admin',adminOnly:true}]:[]),
   ]
 
+  // ── Avatar circle ──────────────────────────────────────────────────────────
+  const Av = ({ size=34, radius=9 }:{size?:number;radius?:number}) => (
+    <div style={{ width:size, height:size, borderRadius:radius, flexShrink:0, display:'grid', placeItems:'center', overflow:'hidden', background:`linear-gradient(135deg,${S.gold2},${S.gold})`, fontFamily:S.mono, fontWeight:700, fontSize:size*.22+'rem', color:'#0B0F19', letterSpacing:'.04em' }}>
+      {avatar ? <img src={avatar} alt={name} style={{width:'100%',height:'100%',objectFit:'cover'}}/> : initials}
+    </div>
+  )
+
   return (
-    <div className="dashboard-container" style={{ minHeight: '100vh', background: '#0a1628', display: 'flex' }}>
-<style>{`
-@media (max-width: 768px) {
-  .dashboard-container { flex-direction: column !important; }
-  .dashboard-sidebar { position: relative !important; width: 100% !important; min-height: auto !important; border-right: none !important; border-bottom: 1px solid rgba(201,168,76,0.12) !important; z-index: 10 !important; }
-  .dashboard-nav { display: flex !important; overflow-x: auto !important; white-space: nowrap !important; padding: 0.5rem !important; }
-  .dashboard-nav button { margin-bottom: 0 !important; margin-right: 0.5rem !important; flex: 0 0 auto !important; padding: 0.5rem 0.75rem !important; border-left: none !important; border-bottom: 2px solid transparent !important; }
-  .dashboard-nav button.active { border-bottom: 2px solid #c9a84c !important; }
-  .dashboard-main { margin-left: 0 !important; padding: 1.5rem 1rem !important; }
-}
-`}</style>
-      {/* SIDEBAR */}
-      <aside className="dashboard-sidebar" style={{ width: 240, minHeight: '100vh', background: '#080f1e', borderRight: '1px solid rgba(201,168,76,0.12)', display: 'flex', flexDirection: 'column', position: 'fixed', top: 0, left: 0, bottom: 0, zIndex: 50 }}>
-        <div style={{ padding: '1.5rem 1.5rem 1rem', borderBottom: '1px solid rgba(201,168,76,0.1)' }}>
-          <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', textDecoration: 'none' }}>
-            <div style={{ width: 32, height: 32, background: 'linear-gradient(135deg, #c9a84c, #e8c97a)', borderRadius: 6, display: 'grid', placeItems: 'center', fontFamily: "'Playfair Display', serif", fontWeight: 900, fontSize: '0.85rem', color: '#0a1628' }}>C</div>
-            <span style={{ fontWeight: 600, fontSize: '0.85rem', color: '#f8f6f0' }}>CDSC<span style={{ color: '#c9a84c' }}>@SCOE</span></span>
+    <div style={{ minHeight:'100vh', background:S.bg, color:S.text, fontFamily:S.outfit, display:'flex', WebkitFontSmoothing:'antialiased' } as React.CSSProperties}>
+      <style suppressHydrationWarning>{`
+        *{box-sizing:border-box;margin:0;padding:0;}
+        @keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+        @keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+
+        .dsb{position:fixed;top:0;left:0;bottom:0;width:240px;background:${S.bg2};border-right:1px solid ${S.border};display:flex;flex-direction:column;z-index:150;transition:transform .3s cubic-bezier(.16,1,.3,1);}
+        .dsb-ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);z-index:149;cursor:pointer;}
+        .dmain{margin-left:240px;flex:1;min-height:100vh;display:flex;flex-direction:column;}
+        .dhambtn{display:none!important;align-items:center;justify-content:center;width:36px;height:36px;border-radius:9px;background:rgba(255,255,255,.05);border:1px solid ${S.border};cursor:pointer;color:${S.text2};}
+        @media(max-width:900px){
+          .dsb{transform:translateX(-100%);}
+          .dsb.open{transform:translateX(0);}
+          .dsb-ov.show{display:block!important;}
+          .dmain{margin-left:0!important;}
+          .dhambtn{display:flex!important;}
+        }
+
+        .dnav{width:100%;display:flex;align-items:center;gap:.65rem;padding:.62rem .85rem;border-radius:10px;font-size:.86rem;font-weight:500;color:${S.text2};background:none;border:none;cursor:pointer;text-align:left;font-family:${S.outfit};transition:background .15s,color .15s;margin-bottom:.15rem;}
+        .dnav:hover{background:rgba(255,255,255,.05);color:${S.text};}
+        .dnav.act{background:rgba(251,191,36,.08);color:${S.gold};border:1px solid rgba(251,191,36,.15);}
+
+        .dtop{position:sticky;top:0;z-index:100;height:60px;padding:0 1.5rem;background:rgba(11,15,25,.94);backdrop-filter:blur(24px);border-bottom:1px solid ${S.border};display:flex;align-items:center;justify-content:space-between;gap:1rem;}
+
+        .dcard{background:${S.card};border:1px solid ${S.border};border-radius:14px;overflow:hidden;}
+        .dres{background:${S.card};border:1px solid ${S.border};border-radius:13px;padding:1.1rem 1.25rem;transition:background .2s,transform .2s,border-color .2s;text-decoration:none;display:block;color:inherit;}
+        .dres:hover{background:${S.card2};border-color:${S.border2};transform:translateX(3px);}
+        .dann{display:flex;gap:.85rem;padding:.9rem 1.1rem;border-bottom:1px solid ${S.border};transition:background .15s;}
+        .dann:last-child{border-bottom:none;}
+        .dann:hover{background:${S.card2};}
+        .dql{display:flex;align-items:center;gap:.55rem;padding:.5rem .75rem;border-radius:9px;font-size:.82rem;color:${S.text2};text-decoration:none;transition:background .15s,color .15s;margin-bottom:.1rem;}
+        .dql:hover{background:rgba(255,255,255,.05);color:${S.text};}
+        .dchip{font-size:.72rem;padding:.28rem .65rem;border:1px solid rgba(255,255,255,.1);border-radius:8px;color:${S.text2};font-family:${S.mono};transition:border-color .15s,color .15s;}
+        .dchip:hover{border-color:${S.border2};color:${S.text};}
+        .dsout{width:100%;display:flex;align-items:center;justify-content:center;gap:.45rem;padding:.55rem;border-radius:9px;font-size:.8rem;font-weight:600;color:${S.red};background:rgba(248,113,113,.06);border:1px solid rgba(248,113,113,.14);cursor:pointer;font-family:${S.outfit};transition:background .15s;}
+        .dsout:hover{background:rgba(248,113,113,.14);}
+
+        .dpage{padding:2rem 1.5rem 4rem;max-width:980px;}
+        @media(min-width:600px){.dpage{padding:2.5rem 2.5rem 4rem;}}
+        .g2{display:grid;grid-template-columns:1.6fr 1fr;gap:1.25rem;}
+        @media(max-width:720px){.g2{grid-template-columns:1fr;}}
+        .gr2{display:grid;grid-template-columns:repeat(2,1fr);gap:1rem;}
+        @media(max-width:600px){.gr2{grid-template-columns:1fr;}}
+        .gp{display:grid;grid-template-columns:1fr 2fr;gap:1.5rem;align-items:start;}
+        @media(max-width:700px){.gp{grid-template-columns:1fr;}}
+      `}</style>
+
+      {/* overlay */}
+      <div className={`dsb-ov${sidebarOpen?' show':''}`} onClick={()=>setSidebarOpen(false)} />
+
+      {/* ── SIDEBAR ── */}
+      <aside className={`dsb${sidebarOpen?' open':''}`}>
+        <div style={{padding:'1.2rem 1.25rem 1rem',borderBottom:`1px solid ${S.border}`}}>
+          <Link href="/" style={{display:'flex',alignItems:'center',gap:'.55rem',textDecoration:'none'}}>
+            <span style={{width:8,height:8,borderRadius:'50%',background:S.gold,display:'inline-block',flexShrink:0}}/>
+            <span style={{fontFamily:S.mono,fontSize:'.88rem',fontWeight:500,color:S.text,letterSpacing:'.04em'}}>CDSC<span style={{color:S.gold}}>@SCOE</span></span>
           </Link>
         </div>
 
-        <nav className="dashboard-nav" style={{ padding: '1rem 0.75rem', flex: 1 }}>
-          {navItems.map(item => (
-            <button key={item.id} className={tab === item.id ? 'active' : ''} onClick={() => setTab(item.id)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.65rem 0.85rem', borderRadius: 6, border: 'none', cursor: 'pointer', marginBottom: '0.25rem', textAlign: 'left', fontSize: '0.85rem', fontWeight: 500, background: tab === item.id ? 'rgba(201,168,76,0.1)' : 'transparent', color: tab === item.id ? '#c9a84c' : '#8a9bb5', borderLeft: tab === item.id ? '2px solid #c9a84c' : '2px solid transparent', transition: 'all 0.15s' }}>
-              <span>{item.icon}</span>
+        <nav style={{flex:1,padding:'.85rem .7rem',overflowY:'auto'}}>
+          <div style={{fontFamily:S.mono,fontSize:'.6rem',letterSpacing:'.12em',textTransform:'uppercase',color:S.text3,padding:'.25rem .85rem .5rem'}}>Navigation</div>
+          {navItems.map(item=>(
+            <button key={item.id} className={`dnav${tab===item.id?' act':''}`} onClick={()=>{setTab(item.id);setSidebarOpen(false)}}>
               {item.label}
-              {item.adminOnly && <span style={{ marginLeft: 'auto', fontSize: '0.58rem', padding: '0.1rem 0.35rem', border: '1px solid rgba(201,168,76,0.4)', borderRadius: 2, color: '#c9a84c' }}>ADMIN</span>}
+              {item.adminOnly && <span style={{marginLeft:'auto',fontFamily:S.mono,fontSize:'.52rem',fontWeight:700,letterSpacing:'.08em',padding:'.15rem .45rem',borderRadius:6,background:'rgba(251,191,36,.12)',border:'1px solid rgba(251,191,36,.25)',color:S.gold}}>ADMIN</span>}
             </button>
+          ))}
+
+          <div style={{height:1,background:S.border,margin:'.75rem 0'}}/>
+          <div style={{fontFamily:S.mono,fontSize:'.6rem',letterSpacing:'.12em',textTransform:'uppercase',color:S.text3,padding:'.25rem .85rem .5rem'}}>Community</div>
+          {[
+            {label:'Telegram', href:'https://t.me/+95_1-Gf6UiUwMGE9',                  dot:'#38BDF8'},
+            {label:'WhatsApp', href:'https://chat.whatsapp.com/CzniCBDSjHY2OVTRespdiO',dot:'#4ADE80'},
+            {label:'YouTube',  href:'https://youtube.com/@CDSCSCOE',                    dot:'#F87171'},
+            {label:'LinkedIn', href:'https://linkedin.com/in/cdsc-2025-scoe',           dot:'#60A5FA'},
+            {label:'GitHub',   href:'https://github.com/cdscscoe',                      dot:'#94A3C4'},
+          ].map(l=>(
+            <a key={l.label} href={l.href} target="_blank" rel="noreferrer" className="dql">
+              <span style={{width:6,height:6,borderRadius:'50%',background:l.dot,flexShrink:0}}/>
+              {l.label}
+            </a>
           ))}
         </nav>
 
-        <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid rgba(201,168,76,0.1)' }}>
-          <div style={{ fontSize: '0.68rem', color: '#8a9bb5', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '0.6rem', fontFamily: "'DM Mono', monospace" }}>Community</div>
-          {[{ label: 'Telegram', href: 'https://t.me/+95_1-Gf6UiUwMGE9' }, { label: 'WhatsApp', href: 'https://chat.whatsapp.com/CzniCBDSjHY2OVTRespdiO' }, { label: 'YouTube', href: 'https://youtube.com/@CDSCSCOE' }, { label: 'LinkedIn', href: 'https://linkedin.com/in/cdsc-2025-scoe' }].map(link => (
-            <a key={link.label} href={link.href} target="_blank" rel="noreferrer" style={{ display: 'block', fontSize: '0.75rem', color: '#8a9bb5', textDecoration: 'none', padding: '0.2rem 0', transition: 'color 0.15s' }}
-              onMouseEnter={e => (e.currentTarget.style.color = '#c9a84c')}
-              onMouseLeave={e => (e.currentTarget.style.color = '#8a9bb5')}>→ {link.label}</a>
-          ))}
-        </div>
-
-        <div style={{ padding: '1rem 1.25rem', borderTop: '1px solid rgba(201,168,76,0.1)', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <div style={{ width: 34, height: 34, borderRadius: '50%', flexShrink: 0, background: 'linear-gradient(135deg, #1a3a6b, #112240)', border: '1px solid rgba(201,168,76,0.3)', display: 'grid', placeItems: 'center', fontSize: '0.78rem', fontWeight: 700, color: '#c9a84c', overflow: 'hidden' }}>
-            {avatar ? <img src={avatar} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initials}
+        <div style={{padding:'.85rem',borderTop:`1px solid ${S.border}`}}>
+          <div style={{display:'flex',alignItems:'center',gap:'.7rem',padding:'.6rem .75rem',borderRadius:11,background:'rgba(255,255,255,.03)',border:`1px solid ${S.border}`,marginBottom:'.6rem'}}>
+            <Av/>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:'.82rem',fontWeight:600,color:S.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{name}</div>
+              <div style={{fontSize:'.66rem',color:isAdmin?S.gold:S.green,fontFamily:S.mono}}>{isAdmin?'★ Admin':'✓ Member'}</div>
+            </div>
           </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#f8f6f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>
-            <div style={{ fontSize: '0.68rem', color: isAdmin ? '#c9a84c' : '#8a9bb5' }}>{isAdmin ? '★ Admin' : 'Member'}</div>
-          </div>
-          <button onClick={handleSignOut} style={{ background: 'none', border: 'none', color: '#8a9bb5', cursor: 'pointer', fontSize: '1rem', padding: '0.25rem', transition: 'color 0.15s' }}
-            onMouseEnter={e => (e.currentTarget.style.color = '#c9a84c')}
-            onMouseLeave={e => (e.currentTarget.style.color = '#8a9bb5')}>⏻</button>
+          <button className="dsout" onClick={handleSignOut}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            Sign Out
+          </button>
         </div>
       </aside>
 
-      {/* MAIN */}
-      <main className="dashboard-main" style={{ marginLeft: 240, flex: 1, padding: '2.5rem 3rem', minHeight: '100vh', width: '100%', maxWidth: '100vw', overflowX: 'hidden' }}>
-
-        {/* HOME */}
-        {tab === 'home' && (
-          <div>
-            <div style={{ marginBottom: '2.5rem' }}>
-              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.7rem', color: '#c9a84c', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '0.4rem' }}>// Dashboard</div>
-              <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: '2rem', fontWeight: 700, color: '#f8f6f0' }}>Welcome back, {name.split(' ')[0]} 👋</h1>
-              <p style={{ color: '#8a9bb5', marginTop: '0.4rem', fontSize: '0.88rem' }}>{profile?.year || 'SCOE'}{profile?.roll_no ? ` · ${profile.roll_no}` : ''}{profile?.bio ? ` · ${profile.bio}` : ''}</p>
+      {/* ── MAIN ── */}
+      <div className="dmain">
+        {/* Topbar */}
+        <div className="dtop">
+          <div style={{display:'flex',alignItems:'center',gap:'.75rem'}}>
+            <button className="dhambtn" onClick={()=>setSidebarOpen(v=>!v)}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
+            <span style={{fontFamily:S.outfit,fontWeight:800,fontSize:'1rem',color:S.text}}>{navItems.find(n=>n.id===tab)?.label??'Dashboard'}</span>
+          </div>
+          <div style={{display:'flex',alignItems:'center',gap:'.6rem'}}>
+            <div style={{display:'flex',alignItems:'center',gap:'.35rem',padding:'.3rem .75rem',borderRadius:20,background:'rgba(74,222,128,.08)',border:'1px solid rgba(74,222,128,.18)',fontFamily:S.mono,fontSize:'.66rem',color:S.green}}>
+              <span style={{width:6,height:6,borderRadius:'50%',background:S.green,animation:'blink 1.8s ease infinite',display:'inline-block'}}/>
+              {isAdmin?'Admin':'Member'}
             </div>
+            <Av size={34} radius={9}/>
+          </div>
+        </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '2.5rem' }}>
-              {[{ label: 'Total Members', value: '119+', icon: '👥' }, { label: 'Active Domains', value: '14', icon: '🗂️' }, { label: 'Your Domains', value: String(domains.length), icon: '⭐' }, { label: 'Resources', value: String(resources.length || '—'), icon: '📚' }].map(s => (
-                <div key={s.label} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(201,168,76,0.15)', borderRadius: 8, padding: '1.25rem' }}>
-                  <div style={{ fontSize: '1.4rem', marginBottom: '0.5rem' }}>{s.icon}</div>
-                  <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.6rem', fontWeight: 700, color: '#c9a84c', lineHeight: 1 }}>{s.value}</div>
-                  <div style={{ fontSize: '0.72rem', color: '#8a9bb5', marginTop: '0.3rem' }}>{s.label}</div>
-                </div>
-              ))}
-            </div>
+        {/* Page */}
+        <div className="dpage">
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: '1.5rem' }}>
-              <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(201,168,76,0.15)', borderRadius: 8, padding: '1.5rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-                  <h2 style={{ fontSize: '1rem', fontWeight: 600, color: '#f8f6f0' }}>📢 Announcements</h2>
-                  <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.65rem', color: '#8a9bb5' }}>Latest first</span>
-                </div>
-                {loadingData ? <p style={{ color: '#8a9bb5', fontSize: '0.82rem' }}>Loading...</p> : announcements.length === 0 ? <p style={{ color: '#8a9bb5', fontSize: '0.82rem' }}>No announcements yet.</p> : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                    {announcements.slice(0, 5).map((a, i) => (
-                      <div key={a.id} style={{ paddingBottom: '0.85rem', borderBottom: i < 4 ? '1px solid rgba(201,168,76,0.08)' : 'none', display: 'flex', gap: '0.75rem' }}>
-                        <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.65rem', color: '#c9a84c', minWidth: 55, paddingTop: '0.15rem' }}>{new Date(a.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
-                        <div>
-                          <span style={{ display: 'inline-block', fontSize: '0.6rem', color: '#c9a84c', border: '1px solid rgba(201,168,76,0.25)', borderRadius: 3, padding: '0.1rem 0.4rem', marginBottom: '0.3rem', fontFamily: "'DM Mono', monospace" }}>{a.tag}</span>
-                          <p style={{ fontSize: '0.85rem', fontWeight: 500, color: '#f8f6f0', marginBottom: '0.2rem' }}>{a.title}</p>
-                          <p style={{ fontSize: '0.78rem', color: '#8a9bb5', lineHeight: 1.6 }}>{a.body}</p>
-                        </div>
-                      </div>
-                    ))}
+          {/* ── HOME ── */}
+          {tab==='home' && (
+            <div style={{animation:'fadeUp .5s ease both'}}>
+              {/* Welcome card */}
+              <div style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:18,padding:'1.6rem',marginBottom:'1.5rem',position:'relative',overflow:'hidden'}}>
+                <div style={{position:'absolute',inset:0,background:'radial-gradient(ellipse 70% 80% at 100% 0%,rgba(251,191,36,.07),transparent)',pointerEvents:'none'}}/>
+                <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:'1rem',flexWrap:'wrap',marginBottom:'1.25rem',position:'relative'}}>
+                  <div>
+                    <div style={{fontFamily:S.outfit,fontWeight:800,fontSize:'clamp(1.3rem,4vw,1.75rem)',color:S.text,lineHeight:1.1}}>Hey, {name.split(' ')[0]} 👋</div>
+                    <div style={{fontSize:'.87rem',color:S.text2,marginTop:'.4rem',lineHeight:1.65}}>
+                      {profile?.year?`${profile.year} Year`:'SCOE'}{profile?.roll_no?` · ${profile.roll_no}`:''}{profile?.bio?` · ${profile.bio}`:''}
+                    </div>
                   </div>
-                )}
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(201,168,76,0.15)', borderRadius: 8, padding: '1.5rem' }}>
-                  <h2 style={{ fontSize: '0.9rem', fontWeight: 600, color: '#f8f6f0', marginBottom: '1rem' }}>🚀 Quick Links</h2>
-                  {[{ label: 'Telegram', href: 'https://t.me/+95_1-Gf6UiUwMGE9', icon: '✈️' }, { label: 'WhatsApp', href: 'https://chat.whatsapp.com/CzniCBDSjHY2OVTRespdiO', icon: '💬' }, { label: 'YouTube', href: 'https://youtube.com/@CDSCSCOE', icon: '▶️' }, { label: 'GitHub', href: 'https://github.com/cdscscoe', icon: '💻' }].map(link => (
-                    <a key={link.label} href={link.href} target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.55rem 0.75rem', borderRadius: 6, textDecoration: 'none', fontSize: '0.82rem', color: '#8a9bb5', transition: 'all 0.15s', marginBottom: '0.15rem' }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(201,168,76,0.08)'; (e.currentTarget as HTMLElement).style.color = '#c9a84c' }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = '#8a9bb5' }}>
-                      {link.icon} {link.label}
-                    </a>
+                  <div style={{display:'flex',alignItems:'center',gap:'.4rem',padding:'.35rem .85rem',borderRadius:20,background:'rgba(74,222,128,.08)',border:'1px solid rgba(74,222,128,.18)',fontFamily:S.mono,fontSize:'.66rem',color:S.green,whiteSpace:'nowrap',flexShrink:0}}>
+                    <span style={{width:6,height:6,borderRadius:'50%',background:S.green,animation:'blink 1.8s ease infinite',display:'inline-block'}}/>
+                    {isAdmin?'Admin':'Verified Member'}
+                  </div>
+                </div>
+                {/* Stat strip */}
+                <div style={{display:'flex',gap:1,background:S.border,border:`1px solid ${S.border}`,borderRadius:13,overflow:'hidden'}}>
+                  {[
+                    {n:'119+',l:'Members',   c:S.gold},
+                    {n:'13+',  l:'Domains',    c:S.green},
+                    {n:String(resources.length||'—'),l:'Resources',c:'#60A5FA'},
+                    {n:String(domains.length||'0'), l:'Your Domains',c:'#818CF8'},
+                  ].map(s=>(
+                    <div key={s.l} style={{flex:1,background:S.bg2,padding:'1rem .75rem',textAlign:'center',minWidth:0}}>
+                      <div style={{fontFamily:S.outfit,fontWeight:800,fontSize:'1.5rem',color:s.c,lineHeight:1,marginBottom:'.2rem'}}>{s.n}</div>
+                      <div style={{fontFamily:S.mono,fontSize:'.58rem',color:S.text2,letterSpacing:'.06em',textTransform:'uppercase'}}>{s.l}</div>
+                    </div>
                   ))}
                 </div>
-                {domains.length > 0 && (
-                  <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(201,168,76,0.15)', borderRadius: 8, padding: '1.25rem' }}>
-                    <h2 style={{ fontSize: '0.88rem', fontWeight: 600, color: '#f8f6f0', marginBottom: '0.75rem' }}>⭐ Your Domains</h2>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
-                      {domains.slice(0, 5).map((d: string) => (
-                        <span key={d} style={{ fontSize: '0.7rem', padding: '0.25rem 0.6rem', border: '1px solid rgba(201,168,76,0.25)', borderRadius: 3, color: '#c9a84c', fontFamily: "'DM Mono', monospace" }}>{DOMAIN_ICONS[d] || '📌'} {d.split(' ')[0]}</span>
-                      ))}
-                      {domains.length > 5 && <span style={{ fontSize: '0.7rem', color: '#8a9bb5' }}>+{domains.length - 5}</span>}
-                    </div>
+              </div>
+
+              <div className="g2">
+                {/* Announcements */}
+                <div className="dcard">
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'1rem 1.1rem',borderBottom:`1px solid ${S.border}`}}>
+                    <span style={{fontFamily:S.outfit,fontWeight:700,fontSize:'.95rem',color:S.text}}>Announcements</span>
+                    <span style={{fontFamily:S.mono,fontSize:'.62rem',color:S.text3}}>Latest first</span>
                   </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* RESOURCES */}
-        {tab === 'resources' && (
-          <div>
-            <div style={{ marginBottom: '2rem' }}>
-              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.7rem', color: '#c9a84c', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '0.4rem' }}>// Knowledge Hub</div>
-              <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.8rem', fontWeight: 700, color: '#f8f6f0' }}>Resources & Study Material</h1>
-            </div>
-            {loadingData ? <p style={{ color: '#8a9bb5' }}>Loading...</p> : resources.length === 0 ? <p style={{ color: '#8a9bb5' }}>No resources yet. Check back soon!</p> : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
-                {resources.map(r => (
-                  <a key={r.id} href={r.url} target="_blank" rel="noreferrer" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(201,168,76,0.15)', borderRadius: 8, padding: '1.5rem', textDecoration: 'none', display: 'block', transition: 'all 0.2s' }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = '#c9a84c'; (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)' }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(201,168,76,0.15)'; (e.currentTarget as HTMLElement).style.transform = 'translateY(0)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.65rem', color: '#c9a84c', textTransform: 'uppercase', letterSpacing: '1px' }}>{r.domain || 'General'}</span>
-                      <span style={{ fontSize: '0.65rem', padding: '0.15rem 0.5rem', border: '1px solid rgba(201,168,76,0.2)', borderRadius: 3, color: '#8a9bb5' }}>{r.type}</span>
-                    </div>
-                    <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#f8f6f0', lineHeight: 1.4, marginBottom: '0.75rem' }}>{r.title}</div>
-                    <div style={{ fontSize: '0.72rem', color: r.is_public ? '#4ade80' : '#8a9bb5' }}>{r.is_public ? '🌐 Public' : '🔒 Members Only'}</div>
-                  </a>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* DIRECTORY */}
-        {tab === 'directory' && <MemberDirectory />}
-
-        {/* PROFILE */}
-        {tab === 'profile' && profile && (
-          <div>
-            <div style={{ marginBottom: '2rem' }}>
-              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.7rem', color: '#c9a84c', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '0.4rem' }}>// Profile</div>
-              <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.8rem', fontWeight: 700, color: '#f8f6f0' }}>Edit Your Profile</h1>
-              <p style={{ color: '#8a9bb5', marginTop: '0.4rem', fontSize: '0.85rem' }}>Changes save directly to the database.</p>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1.5rem', alignItems: 'start' }}>
-              <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(201,168,76,0.15)', borderRadius: 8, padding: '2rem', textAlign: 'center' }}>
-                <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'linear-gradient(135deg, #1a3a6b, #112240)', border: '2px solid rgba(201,168,76,0.3)', margin: '0 auto 1.25rem', display: 'grid', placeItems: 'center', fontFamily: "'Playfair Display', serif", fontSize: '1.6rem', fontWeight: 700, color: '#c9a84c', overflow: 'hidden' }}>
-                  {avatar ? <img src={avatar} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initials}
+                  {loadingData
+                    ? <div style={{padding:'1.5rem 1.1rem',color:S.text2,fontSize:'.85rem'}}>Loading...</div>
+                    : announcements.length===0
+                      ? <div style={{padding:'1.5rem 1.1rem',color:S.text2,fontSize:'.85rem'}}>No announcements yet.</div>
+                      : announcements.slice(0,5).map((a,i)=>(
+                        <div key={a.id} className="dann">
+                          <div style={{display:'flex',flexDirection:'column',alignItems:'center',paddingTop:'.35rem',gap:'.2rem',flexShrink:0}}>
+                            <span style={{width:9,height:9,borderRadius:'50%',background:i===0?S.green:S.gold,display:'inline-block'}}/>
+                          </div>
+                          <div style={{flex:1}}>
+                            <div style={{display:'flex',alignItems:'center',gap:'.5rem',marginBottom:'.25rem',flexWrap:'wrap'}}>
+                              <span style={{fontFamily:S.mono,fontSize:'.58rem',fontWeight:700,letterSpacing:'.07em',padding:'.15rem .5rem',borderRadius:6,background:'rgba(251,191,36,.1)',border:'1px solid rgba(251,191,36,.2)',color:S.gold}}>{a.tag}</span>
+                              <span style={{fontFamily:S.mono,fontSize:'.6rem',color:S.text3}}>{new Date(a.created_at).toLocaleDateString('en-IN',{day:'numeric',month:'short'})}</span>
+                            </div>
+                            <div style={{fontSize:'.88rem',fontWeight:600,color:S.text,marginBottom:'.2rem',lineHeight:1.35}}>{a.title}</div>
+                            <div style={{fontSize:'.8rem',color:S.text2,lineHeight:1.65}}>{a.body}</div>
+                          </div>
+                        </div>
+                      ))
+                  }
                 </div>
-                <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.1rem', fontWeight: 700, color: '#f8f6f0', marginBottom: '0.3rem' }}>{profile.full_name || 'Your Name'}</div>
-                <div style={{ fontSize: '0.78rem', color: '#8a9bb5', marginBottom: '0.75rem' }}>{user.email}</div>
-                {profile.bio && <p style={{ fontSize: '0.78rem', color: '#8a9bb5', lineHeight: 1.6, marginBottom: '0.75rem' }}>{profile.bio}</p>}
-                <div style={{ display: 'inline-block', fontFamily: "'DM Mono', monospace", fontSize: '0.62rem', color: isAdmin ? '#c9a84c' : '#4ade80', border: `1px solid ${isAdmin ? 'rgba(201,168,76,0.3)' : 'rgba(74,222,128,0.3)'}`, padding: '0.2rem 0.7rem', borderRadius: 3 }}>
-                  {isAdmin ? '★ ADMIN' : '✓ MEMBER'}
-                </div>
-                {(profile.linkedin_url || profile.github_url) && (
-                  <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', marginTop: '1rem' }}>
-                    {profile.linkedin_url && <a href={profile.linkedin_url} target="_blank" rel="noreferrer" style={{ fontSize: '0.75rem', padding: '0.25rem 0.75rem', border: '1px solid rgba(201,168,76,0.25)', borderRadius: 3, color: '#c9a84c', textDecoration: 'none' }}>LinkedIn</a>}
-                    {profile.github_url && <a href={profile.github_url} target="_blank" rel="noreferrer" style={{ fontSize: '0.75rem', padding: '0.25rem 0.75rem', border: '1px solid rgba(201,168,76,0.25)', borderRadius: 3, color: '#c9a84c', textDecoration: 'none' }}>GitHub</a>}
+
+                {/* Right */}
+                <div style={{display:'flex',flexDirection:'column',gap:'1rem'}}>
+                  <div className="dcard" style={{padding:'1rem 1.1rem'}}>
+                    <div style={{fontFamily:S.outfit,fontWeight:700,fontSize:'.9rem',color:S.text,marginBottom:'.75rem'}}>Quick Links</div>
+                    {[
+                      {label:'Telegram', href:'https://t.me/+95_1-Gf6UiUwMGE9',                  dot:'#38BDF8'},
+                      {label:'WhatsApp', href:'https://chat.whatsapp.com/CzniCBDSjHY2OVTRespdiO',dot:'#4ADE80'},
+                      {label:'YouTube',  href:'https://youtube.com/@CDSCSCOE',                    dot:'#F87171'},
+                      {label:'GitHub',   href:'https://github.com/cdscscoe',                      dot:'#94A3C4'},
+                    ].map(l=>(
+                      <a key={l.label} href={l.href} target="_blank" rel="noreferrer" className="dql">
+                        <span style={{width:7,height:7,borderRadius:'50%',background:l.dot,flexShrink:0}}/>
+                        {l.label}
+                      </a>
+                    ))}
                   </div>
-                )}
-              </div>
-              <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(201,168,76,0.15)', borderRadius: 8, padding: '2rem' }}>
-                <ProfileEditor userId={user.id} initial={profile} onSave={(updated) => setProfile(updated)} />
+
+                  {domains.length>0 && (
+                    <div className="dcard" style={{padding:'1rem 1.1rem'}}>
+                      <div style={{fontFamily:S.outfit,fontWeight:700,fontSize:'.9rem',color:S.text,marginBottom:'.75rem'}}>Your Domains</div>
+                      <div style={{display:'flex',flexWrap:'wrap',gap:'.4rem'}}>
+                        {domains.slice(0,6).map((d:string)=>(
+                          <span key={d} className="dchip">{DOMAIN_ICONS[d]||'📌'} {d.split(' ')[0]}</span>
+                        ))}
+                        {domains.length>6 && <span style={{fontSize:'.72rem',color:S.text3,padding:'.28rem .4rem'}}>+{domains.length-6} more</span>}
+                      </div>
+                    </div>
+                  )}
+
+                  <div style={{background:'linear-gradient(135deg,rgba(249,115,22,.12),rgba(251,191,36,.08))',border:'1px solid rgba(251,191,36,.18)',borderRadius:14,padding:'1.1rem'}}>
+                    <div style={{fontFamily:S.outfit,fontWeight:700,fontSize:'.88rem',color:S.text,marginBottom:'.3rem'}}>Complete your profile</div>
+                    <div style={{fontSize:'.78rem',color:S.text2,marginBottom:'.85rem',lineHeight:1.55}}>Add your LinkedIn, GitHub and bio so members can find you.</div>
+                    <button onClick={()=>setTab('profile')} style={{display:'inline-flex',alignItems:'center',gap:'.4rem',background:`linear-gradient(90deg,${S.gold2},${S.gold})`,color:'#0B0F19',fontWeight:700,fontSize:'.78rem',padding:'.5rem 1rem',borderRadius:20,border:'none',cursor:'pointer',fontFamily:S.outfit}}>
+                      Edit Profile →
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* ADMIN */}
-        {tab === 'admin' && isAdmin && <AdminPanel adminId={user.id} />}
-        {tab === 'admin' && !isAdmin && (
-          <div style={{ textAlign: 'center', padding: '4rem', color: '#8a9bb5' }}>
-            <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>🔒</div>
-            <p>Admin access required.</p>
-          </div>
-        )}
-      </main>
+          {/* ── RESOURCES ── */}
+          {tab==='resources' && (
+            <div style={{animation:'fadeUp .5s ease both'}}>
+              <div style={{marginBottom:'1.75rem'}}>
+                <div style={{fontFamily:S.mono,fontSize:'.68rem',color:S.text3,letterSpacing:'.12em',textTransform:'uppercase',marginBottom:'.4rem'}}>{'//'} Knowledge Hub</div>
+                <h1 style={{fontFamily:S.outfit,fontWeight:800,fontSize:'clamp(1.5rem,4vw,2rem)',color:S.text,letterSpacing:'-.025em',lineHeight:1.1}}>Resources & Study Material</h1>
+              </div>
+              {loadingData
+                ? <p style={{color:S.text2}}>Loading...</p>
+                : resources.length===0
+  ? (
+    <div style={{ textAlign:'center' }}>
+      <p style={{color:S.text2}}>
+        Join the CDSC Telegram channel to access all trusted resources NOW!
+      </p>
+
+      <a 
+        href="https://t.me/+95_1-Gf6UiUwMGE9" 
+        target="_blank" 
+        rel="noreferrer"
+        style={{
+          display:'inline-block',
+          marginTop:'.7rem',
+          padding:'.4rem .9rem',
+          borderRadius:999,
+          background:'linear-gradient(90deg,#F97316,#FBBF24)',
+          color:'#000',
+          fontSize:'.72rem',
+          fontWeight:600,
+          textDecoration:'none'
+        }}
+      >
+        Join Telegram →
+      </a>
+    </div>
+  )
+                  : <div className="gr2">
+                    {resources.map(r=>(
+                      <a key={r.id} href={r.url} target="_blank" rel="noreferrer" className="dres">
+                        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'.6rem'}}>
+                          <span style={{fontFamily:S.mono,fontSize:'.62rem',color:S.text3,textTransform:'uppercase',letterSpacing:'.08em'}}>{r.domain||'General'}</span>
+                          <span style={{fontSize:'.62rem',padding:'.15rem .5rem',border:`1px solid ${S.border2}`,borderRadius:6,color:S.text2,fontFamily:S.mono}}>{r.type}</span>
+                        </div>
+                        <div style={{fontFamily:S.outfit,fontWeight:700,fontSize:'.92rem',color:S.text,lineHeight:1.4,marginBottom:'.65rem'}}>{r.title}</div>
+                        <div style={{fontSize:'.75rem',color:r.is_public?S.green:S.text3,fontFamily:S.mono}}>{r.is_public?'🌐 Public':'🔒 Members Only'}</div>
+                      </a>
+                    ))}
+                  </div>
+              }
+            </div>
+            
+          )}
+
+          {/* ── DIRECTORY ── */}
+          {tab==='directory' && <MemberDirectory />}
+
+          {/* ── PROFILE ── */}
+          {tab==='profile' && profile && (
+            <div style={{animation:'fadeUp .5s ease both'}}>
+              <div style={{marginBottom:'1.75rem'}}>
+                <div style={{fontFamily:S.mono,fontSize:'.68rem',color:S.text3,letterSpacing:'.12em',textTransform:'uppercase',marginBottom:'.4rem'}}>{'//'} Profile</div>
+                <h1 style={{fontFamily:S.outfit,fontWeight:800,fontSize:'clamp(1.5rem,4vw,2rem)',color:S.text,letterSpacing:'-.025em',lineHeight:1.1}}>Edit Your Profile</h1>
+                <p style={{color:S.text2,marginTop:'.4rem',fontSize:'.85rem'}}>Changes saved will be visible to all.</p>
+              </div>
+              <div className="gp">
+                <div className="dcard" style={{padding:'2rem',textAlign:'center'}}>
+                  <div style={{width:80,height:80,borderRadius:16,margin:'0 auto 1.25rem',display:'grid',placeItems:'center',overflow:'hidden',background:`linear-gradient(135deg,${S.gold2},${S.gold})`,fontFamily:S.outfit,fontWeight:800,fontSize:'1.6rem',color:'#0B0F19',border:`3px solid ${S.card}`,boxShadow:'0 8px 24px rgba(0,0,0,.4)'}}>
+                    {avatar?<img src={avatar} alt={name} style={{width:'100%',height:'100%',objectFit:'cover'}}/>:initials}
+                  </div>
+                  <div style={{fontFamily:S.outfit,fontWeight:800,fontSize:'1.05rem',color:S.text,marginBottom:'.25rem'}}>{profile.full_name||'Your Name'}</div>
+                  <div style={{fontSize:'.78rem',color:S.text2,marginBottom:'.75rem'}}>{user.email}</div>
+                  {profile.bio&&<p style={{fontSize:'.78rem',color:S.text2,lineHeight:1.6,marginBottom:'.75rem'}}>{profile.bio}</p>}
+                  <div style={{display:'inline-block',fontFamily:S.mono,fontSize:'.62rem',color:isAdmin?S.gold:S.green,border:`1px solid ${isAdmin?'rgba(251,191,36,.3)':'rgba(74,222,128,.3)'}`,padding:'.2rem .7rem',borderRadius:6}}>
+                    {isAdmin?'★ ADMIN':'✓ MEMBER'}
+                  </div>
+                  {(profile.linkedin_url||profile.github_url)&&(
+                    <div style={{display:'flex',justifyContent:'center',gap:'.5rem',marginTop:'1rem'}}>
+                      {profile.linkedin_url&&<a href={profile.linkedin_url} target="_blank" rel="noreferrer" style={{fontSize:'.75rem',padding:'.28rem .75rem',border:`1px solid ${S.border2}`,borderRadius:8,color:S.text2,textDecoration:'none'}}>LinkedIn</a>}
+                      {profile.github_url&&<a href={profile.github_url} target="_blank" rel="noreferrer" style={{fontSize:'.75rem',padding:'.28rem .75rem',border:`1px solid ${S.border2}`,borderRadius:8,color:S.text2,textDecoration:'none'}}>GitHub</a>}
+                    </div>
+                  )}
+                </div>
+                <div className="dcard" style={{padding:'2rem'}}>
+                  <ProfileEditor userId={user.id} initial={profile} onSave={(updated)=>setProfile(updated)}/>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── ADMIN ── */}
+          {tab==='admin'&&isAdmin&&<AdminPanel adminId={user.id}/>}
+          {tab==='admin'&&!isAdmin&&(
+            <div style={{textAlign:'center',padding:'4rem',color:S.text2}}>
+              <div style={{fontSize:'2.5rem',marginBottom:'1rem'}}>🔒</div>
+              <p>Admin access required.</p>
+            </div>
+          )}
+
+        </div>
+      </div>
     </div>
   )
 }

@@ -9,7 +9,6 @@ const DOMAIN_OPTIONS = [
   'GATE Preparation', 'SQL & Databases', 'Free Certifications',
   'Digital Marketing', 'LinkedIn & Resume', 'General',
 ]
-
 const RESOURCE_TYPES = ['video', 'pdf', 'blog', 'document', 'tool']
 
 interface Member {
@@ -22,7 +21,6 @@ interface Member {
   is_verified: boolean
   created_at: string
 }
-
 interface Announcement {
   id: string
   title: string
@@ -30,7 +28,6 @@ interface Announcement {
   tag: string
   created_at: string
 }
-
 interface Resource {
   id: string
   title: string
@@ -40,8 +37,46 @@ interface Resource {
   is_public: boolean
   created_at: string
 }
-
 type AdminTab = 'members' | 'announcements' | 'resources'
+
+// ── SHARED STYLE TOKENS ───────────────────────────────────────────────────────
+const T = {
+  bg:      '#0B0F19',
+  card:    'rgba(22,29,48,0.75)',
+  border:  'rgba(255,255,255,0.08)',
+  border2: 'rgba(255,255,255,0.12)',
+  text:    '#F1F5FF',
+  text2:   '#94A3C4',
+  text3:   'rgba(148,163,196,0.45)',
+  gold:    '#FBBF24',
+  indigo:  '#6366F1',
+  green:   '#4ADE80',
+  red:     '#F87171',
+  heading: "'Outfit', sans-serif",
+  body:    "'DM Sans', sans-serif",
+  mono:    "'DM Mono', monospace",
+}
+
+const inputStyle: React.CSSProperties = {
+  width: '100%', padding: '.7rem 1rem',
+  background: 'rgba(255,255,255,.04)',
+  border: `1px solid ${T.border2}`,
+  borderRadius: 8, color: T.text,
+  fontFamily: T.body, fontSize: '.88rem',
+  outline: 'none', transition: 'border-color .2s, box-shadow .2s',
+}
+const labelSt: React.CSSProperties = {
+  display: 'block', fontFamily: T.mono,
+  fontSize: '.62rem', color: T.text3,
+  letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: '.45rem',
+}
+const cardSt: React.CSSProperties = {
+  background: T.card,
+  backdropFilter: 'blur(20px)',
+  WebkitBackdropFilter: 'blur(20px)',
+  border: `1px solid ${T.border}`,
+  borderRadius: 14,
+}
 
 export default function AdminPanel({ adminId }: { adminId: string }) {
   const [tab, setTab] = useState<AdminTab>('members')
@@ -51,12 +86,10 @@ export default function AdminPanel({ adminId }: { adminId: string }) {
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
 
-  // Announcement form state
   const [annForm, setAnnForm] = useState({ title: '', body: '', tag: 'Community' })
   const [annSaving, setAnnSaving] = useState(false)
   const [annError, setAnnError] = useState('')
 
-  // Resource form state
   const [resForm, setResForm] = useState({ title: '', description: '', domain: '', type: 'video', url: '', is_public: false })
   const [resSaving, setResSaving] = useState(false)
   const [resError, setResError] = useState('')
@@ -65,180 +98,174 @@ export default function AdminPanel({ adminId }: { adminId: string }) {
 
   const fetchAll = async () => {
     setLoading(true)
-    const [membersRes, annRes, resRes] = await Promise.all([
-      supabase.from('profiles').select('id, full_name, year, roll_no, domains, is_admin, is_verified, created_at').order('created_at'),
+    const [mR, aR, rR] = await Promise.all([
+      supabase.from('profiles').select('id,full_name,year,roll_no,domains,is_admin,is_verified,created_at').order('created_at'),
       supabase.from('announcements').select('*').order('created_at', { ascending: false }),
       supabase.from('resources').select('*').order('created_at', { ascending: false }),
     ])
-    if (membersRes.data) setMembers(membersRes.data)
-    if (annRes.data) setAnnouncements(annRes.data)
-    if (resRes.data) setResources(resRes.data)
+    if (mR.data) setMembers(mR.data)
+    if (aR.data) setAnnouncements(aR.data)
+    if (rR.data) setResources(rR.data)
     setLoading(false)
   }
 
-  // Toggle member admin status
-  const toggleAdmin = async (memberId: string, current: boolean) => {
-    await supabase.from('profiles').update({ is_admin: !current }).eq('id', memberId)
-    setMembers(prev => prev.map(m => m.id === memberId ? { ...m, is_admin: !current } : m))
-  }
+  const toggleAdmin    = async (id: string, cur: boolean) => { await supabase.from('profiles').update({ is_admin: !cur }).eq('id', id); setMembers(p => p.map(m => m.id === id ? { ...m, is_admin: !cur } : m)) }
+  const toggleVerified = async (id: string, cur: boolean) => { await supabase.from('profiles').update({ is_verified: !cur }).eq('id', id); setMembers(p => p.map(m => m.id === id ? { ...m, is_verified: !cur } : m)) }
 
-  // Toggle member verified status
-  const toggleVerified = async (memberId: string, current: boolean) => {
-    await supabase.from('profiles').update({ is_verified: !current }).eq('id', memberId)
-    setMembers(prev => prev.map(m => m.id === memberId ? { ...m, is_verified: !current } : m))
-  }
-
-  // Post announcement
   const postAnnouncement = async () => {
     if (!annForm.title || !annForm.body) { setAnnError('Title and body required'); return }
     setAnnSaving(true); setAnnError('')
-    const { error } = await supabase.from('announcements').insert({
-      title: annForm.title, body: annForm.body, tag: annForm.tag, created_by: adminId,
-    })
-    if (error) { setAnnError(error.message) }
+    const { error } = await supabase.from('announcements').insert({ title: annForm.title, body: annForm.body, tag: annForm.tag, created_by: adminId })
+    if (error) setAnnError(error.message)
     else { setAnnForm({ title: '', body: '', tag: 'Community' }); fetchAll() }
     setAnnSaving(false)
   }
 
-  // Delete announcement
-  const deleteAnnouncement = async (id: string) => {
-    await supabase.from('announcements').delete().eq('id', id)
-    setAnnouncements(prev => prev.filter(a => a.id !== id))
-  }
+  const deleteAnnouncement = async (id: string) => { await supabase.from('announcements').delete().eq('id', id); setAnnouncements(p => p.filter(a => a.id !== id)) }
 
-  // Upload resource
   const uploadResource = async () => {
     if (!resForm.title || !resForm.url) { setResError('Title and URL required'); return }
     setResSaving(true); setResError('')
-    const { error } = await supabase.from('resources').insert({
-      title: resForm.title, description: resForm.description,
-      domain: resForm.domain, type: resForm.type,
-      url: resForm.url, is_public: resForm.is_public,
-      created_by: adminId,
-    })
-    if (error) { setResError(error.message) }
+    const { error } = await supabase.from('resources').insert({ ...resForm, created_by: adminId })
+    if (error) setResError(error.message)
     else { setResForm({ title: '', description: '', domain: '', type: 'video', url: '', is_public: false }); fetchAll() }
     setResSaving(false)
   }
 
-  // Delete resource
-  const deleteResource = async (id: string) => {
-    await supabase.from('resources').delete().eq('id', id)
-    setResources(prev => prev.filter(r => r.id !== id))
-  }
+  const deleteResource = async (id: string) => { await supabase.from('resources').delete().eq('id', id); setResources(p => p.filter(r => r.id !== id)) }
 
-  const tabBtnStyle = (active: boolean): React.CSSProperties => ({
-    padding: '0.55rem 1.25rem', borderRadius: 6, border: 'none',
-    cursor: 'pointer', fontSize: '0.82rem', fontWeight: 500,
-    background: active ? 'rgba(201,168,76,0.15)' : 'transparent',
-    color: active ? '#c9a84c' : '#8a9bb5',
-    borderBottom: active ? '2px solid #c9a84c' : '2px solid transparent',
-    transition: 'all 0.15s',
-  })
+  const TABS: { key: AdminTab; label: string }[] = [
+    { key: 'members', label: 'Members' },
+    { key: 'announcements', label: 'Announcements' },
+    { key: 'resources', label: 'Resources' },
+  ]
+
+  const STATS = [
+    { label: 'Members', value: members.length, color: T.gold },
+    { label: 'Announcements', value: announcements.length, color: '#A5B4FC' },
+    { label: 'Resources', value: resources.length, color: T.green },
+  ]
 
   return (
-    <div>
-      {/* Header */}
-      <div style={{ marginBottom: '1.5rem' }}>
-        <div style={{ fontFamily: "'DM Mono', monospace", fontSize: '0.7rem', color: '#c9a84c', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '0.4rem' }}>
+    <div style={{ fontFamily: T.body, color: T.text }}>
+      <style>{`
+        .adm-input:focus { border-color: rgba(99,102,241,.6) !important; box-shadow: 0 0 0 3px rgba(99,102,241,.1) !important; }
+        .adm-tag-btn { transition: all .15s; }
+        .adm-tag-btn:hover { color: ${T.gold} !important; border-color: rgba(251,191,36,.4) !important; }
+        .adm-row:hover { background: rgba(255,255,255,.03) !important; }
+        .adm-del:hover { color: ${T.red} !important; border-color: rgba(248,113,113,.3) !important; }
+        @media (max-width: 640px) {
+          .adm-grid-3 { grid-template-columns: 1fr !important; }
+          .adm-grid-2 { grid-template-columns: 1fr !important; }
+          .adm-announce-grid { grid-template-columns: 1fr !important; }
+          .adm-table-scroll { overflow-x: auto; }
+          .adm-table-scroll table { min-width: 600px; }
+        }
+      `}</style>
+
+      {/* ── HEADER ── */}
+      <div style={{ marginBottom: '1.75rem' }}>
+        <div style={{ fontFamily: T.mono, fontSize: '.65rem', color: T.indigo, letterSpacing: '.12em', textTransform: 'uppercase', marginBottom: '.5rem' }}>
           // Admin Panel
         </div>
-        <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.8rem', fontWeight: 700, color: '#f8f6f0' }}>
+        <h1 style={{ fontFamily: T.heading, fontWeight: 800, fontSize: 'clamp(1.5rem,4vw,2rem)', color: T.text, letterSpacing: '-.02em', lineHeight: 1.1 }}>
           Community Management
         </h1>
-        <p style={{ color: '#8a9bb5', marginTop: '0.3rem', fontSize: '0.82rem' }}>
+        <p style={{ color: T.text2, marginTop: '.35rem', fontSize: '.85rem' }}>
           Manage members, post announcements, and upload resources.
         </p>
       </div>
 
-      {/* Stats row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
-        {[
-          { label: 'Total Members', value: members.length, icon: '👥' },
-          { label: 'Announcements', value: announcements.length, icon: '📢' },
-          { label: 'Resources', value: resources.length, icon: '📚' },
-        ].map(s => (
-          <div key={s.label} style={{
-            background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(201,168,76,0.15)',
-            borderRadius: 8, padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem',
-          }}>
-            <span style={{ fontSize: '1.5rem' }}>{s.icon}</span>
-            <div>
-              <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.5rem', fontWeight: 700, color: '#c9a84c' }}>{s.value}</div>
-              <div style={{ fontSize: '0.72rem', color: '#8a9bb5' }}>{s.label}</div>
-            </div>
+      {/* ── STATS ── */}
+      <div className="adm-grid-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '.75rem', marginBottom: '1.75rem' }}>
+        {STATS.map(s => (
+          <div key={s.label} style={{ ...cardSt, padding: '1.1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <div style={{ fontFamily: T.heading, fontWeight: 800, fontSize: '1.75rem', color: s.color, lineHeight: 1 }}>{s.value}</div>
+            <div style={{ fontFamily: T.mono, fontSize: '.65rem', color: T.text3, letterSpacing: '.08em', textTransform: 'uppercase' }}>{s.label}</div>
           </div>
         ))}
       </div>
 
-      {/* Tab buttons */}
-      <div style={{ display: 'flex', gap: '0.25rem', marginBottom: '1.5rem', borderBottom: '1px solid rgba(201,168,76,0.1)', paddingBottom: '0' }}>
-        {(['members', 'announcements', 'resources'] as AdminTab[]).map(t => (
-          <button key={t} onClick={() => setTab(t)} style={tabBtnStyle(tab === t)}>
-            {t === 'members' ? '👥 Members' : t === 'announcements' ? '📢 Announcements' : '📚 Resources'}
+      {/* ── TABS ── */}
+      <div style={{ display: 'flex', gap: '.25rem', marginBottom: '1.5rem', background: 'rgba(255,255,255,.03)', borderRadius: 10, padding: '.3rem', border: `1px solid ${T.border}` }}>
+        {TABS.map(t => (
+          <button key={t.key} onClick={() => setTab(t.key)} style={{
+            flex: 1, padding: '.55rem .75rem', borderRadius: 7, border: 'none',
+            cursor: 'pointer', fontSize: '.82rem', fontWeight: 600,
+            fontFamily: T.body, transition: 'all .2s',
+            background: tab === t.key ? 'rgba(99,102,241,.15)' : 'transparent',
+            color: tab === t.key ? '#A5B4FC' : T.text2,
+            boxShadow: tab === t.key ? `0 0 0 1px rgba(99,102,241,.3)` : 'none',
+          }}>
+            {t.label}
           </button>
         ))}
       </div>
 
-      {loading && <div style={{ color: '#8a9bb5', fontSize: '0.85rem' }}>Loading...</div>}
+      {loading && (
+        <div style={{ textAlign: 'center', padding: '3rem', color: T.text3, fontFamily: T.mono, fontSize: '.75rem', letterSpacing: '.1em' }}>
+          LOADING...
+        </div>
+      )}
 
       {/* ── MEMBERS TAB ── */}
       {!loading && tab === 'members' && (
-        <div>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.83rem' }}>
+        <div style={{ ...cardSt, overflow: 'hidden' }}>
+          <div style={{ padding: '1rem 1.25rem', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontFamily: T.mono, fontSize: '.68rem', color: T.text3, letterSpacing: '.1em', textTransform: 'uppercase' }}>
+              {members.length} total members
+            </span>
+          </div>
+          <div className="adm-table-scroll">
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.82rem' }}>
               <thead>
-                <tr style={{ borderBottom: '1px solid rgba(201,168,76,0.15)' }}>
+                <tr style={{ borderBottom: `1px solid ${T.border}` }}>
                   {['Name', 'Year', 'Roll No', 'Domains', 'Joined', 'Verified', 'Admin'].map(h => (
-                    <th key={h} style={{ padding: '0.6rem 0.75rem', textAlign: 'left', color: '#8a9bb5', fontFamily: "'DM Mono', monospace", fontSize: '0.68rem', letterSpacing: '1px', textTransform: 'uppercase', fontWeight: 400 }}>{h}</th>
+                    <th key={h} style={{ padding: '.65rem 1rem', textAlign: 'left', fontFamily: T.mono, fontSize: '.6rem', color: T.text3, letterSpacing: '.1em', textTransform: 'uppercase', fontWeight: 400 }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {members.map(m => (
-                  <tr key={m.id} style={{ borderBottom: '1px solid rgba(201,168,76,0.06)', transition: 'background 0.15s' }}
-                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(201,168,76,0.03)')}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                    <td style={{ padding: '0.75rem', color: '#f8f6f0', fontWeight: 500 }}>
-                      {m.full_name || <span style={{ color: '#8a9bb5', fontStyle: 'italic' }}>No name</span>}
+                  <tr key={m.id} className="adm-row" style={{ borderBottom: `1px solid ${T.border}`, transition: 'background .15s' }}>
+                    <td style={{ padding: '.75rem 1rem', color: T.text, fontWeight: 600 }}>
+                      {m.full_name || <span style={{ color: T.text3, fontStyle: 'italic', fontWeight: 400 }}>No name</span>}
                     </td>
-                    <td style={{ padding: '0.75rem', color: '#8a9bb5', fontSize: '0.78rem' }}>
+                    <td style={{ padding: '.75rem 1rem', color: T.text2, fontSize: '.78rem', fontFamily: T.mono }}>
                       {m.year?.replace('First Year (FE)', 'FE').replace('Second Year (SE)', 'SE').replace('Third Year (TE)', 'TE').replace('Final Year (BE)', 'BE') || '—'}
                     </td>
-                    <td style={{ padding: '0.75rem', color: '#8a9bb5', fontFamily: "'DM Mono', monospace", fontSize: '0.75rem' }}>
-                      {m.roll_no || '—'}
-                    </td>
-                    <td style={{ padding: '0.75rem' }}>
-                      <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
+                    <td style={{ padding: '.75rem 1rem', color: T.text3, fontFamily: T.mono, fontSize: '.75rem' }}>{m.roll_no || '—'}</td>
+                    <td style={{ padding: '.75rem 1rem' }}>
+                      <div style={{ display: 'flex', gap: '.3rem', flexWrap: 'wrap' }}>
                         {(m.domains || []).slice(0, 2).map(d => (
-                          <span key={d} style={{ fontSize: '0.62rem', padding: '0.1rem 0.4rem', border: '1px solid rgba(201,168,76,0.2)', borderRadius: 2, color: '#c9a84c' }}>
+                          <span key={d} style={{ fontSize: '.6rem', padding: '.15rem .45rem', border: '1px solid rgba(99,102,241,.3)', borderRadius: 4, color: '#A5B4FC', fontFamily: T.mono, background: 'rgba(99,102,241,.08)' }}>
                             {d.split(' ')[0]}
                           </span>
                         ))}
-                        {(m.domains || []).length > 2 && <span style={{ fontSize: '0.62rem', color: '#8a9bb5' }}>+{m.domains.length - 2}</span>}
+                        {(m.domains || []).length > 2 && <span style={{ fontSize: '.6rem', color: T.text3 }}>+{m.domains.length - 2}</span>}
                       </div>
                     </td>
-                    <td style={{ padding: '0.75rem', color: '#8a9bb5', fontSize: '0.75rem', fontFamily: "'DM Mono', monospace" }}>
+                    <td style={{ padding: '.75rem 1rem', color: T.text3, fontFamily: T.mono, fontSize: '.7rem' }}>
                       {new Date(m.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
                     </td>
-                    <td style={{ padding: '0.75rem' }}>
+                    <td style={{ padding: '.75rem 1rem' }}>
                       <button onClick={() => toggleVerified(m.id, m.is_verified)} style={{
-                        padding: '0.2rem 0.6rem', borderRadius: 3, border: 'none',
-                        cursor: 'pointer', fontSize: '0.7rem', fontWeight: 500,
-                        background: m.is_verified ? 'rgba(74,222,128,0.1)' : 'rgba(138,155,181,0.1)',
-                        color: m.is_verified ? '#4ade80' : '#8a9bb5',
-                        transition: 'all 0.15s',
+                        padding: '.2rem .6rem', borderRadius: 5, cursor: 'pointer',
+                        fontSize: '.7rem', fontWeight: 600, fontFamily: T.mono, transition: 'all .15s',
+                        background: m.is_verified ? 'rgba(74,222,128,.1)' : 'rgba(255,255,255,.05)',
+                        color: m.is_verified ? T.green : T.text3,
+                        border: `1px solid ${m.is_verified ? 'rgba(74,222,128,.3)' : T.border}` as any,
                       }}>
                         {m.is_verified ? '✓ Yes' : 'No'}
                       </button>
                     </td>
-                    <td style={{ padding: '0.75rem' }}>
+                    <td style={{ padding: '.75rem 1rem' }}>
                       <button onClick={() => toggleAdmin(m.id, m.is_admin)} style={{
-                        padding: '0.2rem 0.6rem', borderRadius: 3, border: 'none',
-                        cursor: 'pointer', fontSize: '0.7rem', fontWeight: 500,
-                        background: m.is_admin ? 'rgba(201,168,76,0.15)' : 'rgba(138,155,181,0.1)',
-                        color: m.is_admin ? '#c9a84c' : '#8a9bb5',
-                        transition: 'all 0.15s',
+                        padding: '.2rem .6rem', borderRadius: 5, cursor: 'pointer',
+                        fontSize: '.7rem', fontWeight: 600, fontFamily: T.mono, transition: 'all .15s',
+                        background: m.is_admin ? 'rgba(251,191,36,.1)' : 'rgba(255,255,255,.05)',
+                        color: m.is_admin ? T.gold : T.text3,
+                        border: `1px solid ${m.is_admin ? 'rgba(251,191,36,.3)' : T.border}` as any,
                       }}>
                         {m.is_admin ? '★ Admin' : 'Member'}
                       </button>
@@ -253,76 +280,61 @@ export default function AdminPanel({ adminId }: { adminId: string }) {
 
       {/* ── ANNOUNCEMENTS TAB ── */}
       {!loading && tab === 'announcements' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: '1.5rem', alignItems: 'start' }}>
-          {/* Post form */}
-          <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(201,168,76,0.15)', borderRadius: 8, padding: '1.5rem' }}>
-            <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: '#f8f6f0', marginBottom: '1.25rem' }}>Post Announcement</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+        <div className="adm-announce-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '1.25rem', alignItems: 'start' }}>
+          {/* Form */}
+          <div style={{ ...cardSt, padding: '1.5rem' }}>
+            <div style={{ fontFamily: T.mono, fontSize: '.65rem', color: T.indigo, letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: '1.25rem' }}>
+              Post Announcement
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '.9rem' }}>
               <div>
-                <label style={labelStyle}>TITLE</label>
-                <input value={annForm.title} onChange={e => setAnnForm(p => ({ ...p, title: e.target.value }))} placeholder="Announcement title" className="input-field" />
+                <label style={labelSt}>Title</label>
+                <input value={annForm.title} onChange={e => setAnnForm(p => ({ ...p, title: e.target.value }))} placeholder="Announcement title" className="adm-input" style={inputStyle} />
               </div>
               <div>
-                <label style={labelStyle}>TAG</label>
-                <select value={annForm.tag} onChange={e => setAnnForm(p => ({ ...p, tag: e.target.value }))} className="input-field" style={{ appearance: 'none' }}>
+                <label style={labelSt}>Tag</label>
+                <select value={annForm.tag} onChange={e => setAnnForm(p => ({ ...p, tag: e.target.value }))} className="adm-input" style={{ ...inputStyle, cursor: 'pointer', appearance: 'none' }}>
                   {['Community', 'DSA', 'Event', 'Career', 'ML', 'Web', 'Domains', 'GitHub', 'YouTube'].map(t => (
-                    <option key={t} value={t} style={{ background: '#112240' }}>{t}</option>
+                    <option key={t} value={t} style={{ background: '#161D30' }}>{t}</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label style={labelStyle}>BODY</label>
+                <label style={labelSt}>Body</label>
                 <textarea
                   value={annForm.body}
                   onChange={e => setAnnForm(p => ({ ...p, body: e.target.value }))}
-                  placeholder="Write your announcement here..."
+                  placeholder="Write your announcement..."
                   rows={4}
-                  style={{
-                    width: '100%', padding: '0.75rem 1rem', borderRadius: 6,
-                    background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(201,168,76,0.2)',
-                    color: '#f8f6f0', fontSize: '0.85rem', outline: 'none',
-                    resize: 'vertical', fontFamily: 'inherit',
-                  }}
-                  onFocus={e => (e.currentTarget.style.borderColor = '#c9a84c')}
-                  onBlur={e => (e.currentTarget.style.borderColor = 'rgba(201,168,76,0.2)')}
+                  className="adm-input"
+                  style={{ ...inputStyle, resize: 'vertical' }}
                 />
               </div>
-              {annError && <div style={errorStyle}>{annError}</div>}
-              <button onClick={postAnnouncement} disabled={annSaving} className="btn-primary" style={{ justifyContent: 'center' }}>
-                {annSaving ? 'Posting...' : 'Post Announcement →'}
+              {annError && <div style={errSt}>{annError}</div>}
+              <button onClick={postAnnouncement} disabled={annSaving} style={primaryBtn}>
+                {annSaving ? 'Posting...' : 'Post →'}
               </button>
             </div>
           </div>
 
-          {/* Existing announcements */}
+          {/* List */}
           <div>
-            <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: '#f8f6f0', marginBottom: '1rem' }}>
+            <div style={{ fontFamily: T.mono, fontSize: '.65rem', color: T.text3, letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: '1rem' }}>
               Posted ({announcements.length})
-            </h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxHeight: 480, overflowY: 'auto', paddingRight: '0.25rem' }}>
-              {announcements.length === 0 && <p style={{ color: '#8a9bb5', fontSize: '0.83rem' }}>No announcements yet.</p>}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '.75rem', maxHeight: 520, overflowY: 'auto' }}>
+              {announcements.length === 0 && <p style={{ color: T.text3, fontSize: '.83rem' }}>No announcements yet.</p>}
               {announcements.map(a => (
-                <div key={a.id} style={{
-                  background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(201,168,76,0.1)',
-                  borderRadius: 6, padding: '1rem',
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.4rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <span style={{ fontSize: '0.65rem', padding: '0.15rem 0.5rem', border: '1px solid rgba(201,168,76,0.25)', borderRadius: 2, color: '#c9a84c', fontFamily: "'DM Mono', monospace" }}>{a.tag}</span>
-                      <span style={{ fontSize: '0.95rem', fontWeight: 600, color: '#f8f6f0' }}>{a.title}</span>
+                <div key={a.id} style={{ ...cardSt, padding: '1rem 1.25rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '.75rem', marginBottom: '.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', minWidth: 0 }}>
+                      <span style={{ fontFamily: T.mono, fontSize: '.6rem', padding: '.15rem .5rem', border: '1px solid rgba(99,102,241,.3)', borderRadius: 4, color: '#A5B4FC', background: 'rgba(99,102,241,.08)', flexShrink: 0 }}>{a.tag}</span>
+                      <span style={{ fontWeight: 600, fontSize: '.88rem', color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.title}</span>
                     </div>
-                    <button onClick={() => deleteAnnouncement(a.id)} style={{
-                      background: 'none', border: 'none', color: '#8a9bb5',
-                      cursor: 'pointer', fontSize: '0.75rem', padding: '0.1rem 0.3rem',
-                      transition: 'color 0.15s', flexShrink: 0,
-                    }}
-                      onMouseEnter={e => (e.currentTarget.style.color = '#fca5a5')}
-                      onMouseLeave={e => (e.currentTarget.style.color = '#8a9bb5')}>
-                      ✕
-                    </button>
+                    <button onClick={() => deleteAnnouncement(a.id)} className="adm-del" style={{ background: 'none', border: `1px solid ${T.border}`, borderRadius: 5, color: T.text3, cursor: 'pointer', fontSize: '.72rem', padding: '.2rem .5rem', flexShrink: 0, transition: 'all .15s', fontFamily: T.mono }}>✕</button>
                   </div>
-                  <p style={{ fontSize: '0.8rem', color: '#8a9bb5', lineHeight: 1.6 }}>{a.body}</p>
-                  <p style={{ fontSize: '0.65rem', color: '#8a9bb5', marginTop: '0.5rem', fontFamily: "'DM Mono', monospace" }}>
+                  <p style={{ fontSize: '.82rem', color: T.text2, lineHeight: 1.7 }}>{a.body}</p>
+                  <p style={{ fontFamily: T.mono, fontSize: '.62rem', color: T.text3, marginTop: '.6rem' }}>
                     {new Date(a.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
                   </p>
                 </div>
@@ -334,83 +346,73 @@ export default function AdminPanel({ adminId }: { adminId: string }) {
 
       {/* ── RESOURCES TAB ── */}
       {!loading && tab === 'resources' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: '1.5rem', alignItems: 'start' }}>
-          {/* Upload form */}
-          <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(201,168,76,0.15)', borderRadius: 8, padding: '1.5rem' }}>
-            <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: '#f8f6f0', marginBottom: '1.25rem' }}>Upload Resource</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+        <div className="adm-announce-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '1.25rem', alignItems: 'start' }}>
+          {/* Form */}
+          <div style={{ ...cardSt, padding: '1.5rem' }}>
+            <div style={{ fontFamily: T.mono, fontSize: '.65rem', color: T.indigo, letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: '1.25rem' }}>
+              Upload Resource
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '.9rem' }}>
               <div>
-                <label style={labelStyle}>TITLE</label>
-                <input value={resForm.title} onChange={e => setResForm(p => ({ ...p, title: e.target.value }))} placeholder="Resource title" className="input-field" />
+                <label style={labelSt}>Title</label>
+                <input value={resForm.title} onChange={e => setResForm(p => ({ ...p, title: e.target.value }))} placeholder="Resource title" className="adm-input" style={inputStyle} />
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+              <div className="adm-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem' }}>
                 <div>
-                  <label style={labelStyle}>DOMAIN</label>
-                  <select value={resForm.domain} onChange={e => setResForm(p => ({ ...p, domain: e.target.value }))} className="input-field" style={{ appearance: 'none' }}>
-                    <option value="" style={{ background: '#112240' }}>Select domain</option>
-                    {DOMAIN_OPTIONS.map(d => <option key={d} value={d} style={{ background: '#112240' }}>{d}</option>)}
+                  <label style={labelSt}>Domain</label>
+                  <select value={resForm.domain} onChange={e => setResForm(p => ({ ...p, domain: e.target.value }))} className="adm-input" style={{ ...inputStyle, appearance: 'none', cursor: 'pointer' }}>
+                    <option value="" style={{ background: '#161D30' }}>Select domain</option>
+                    {DOMAIN_OPTIONS.map(d => <option key={d} value={d} style={{ background: '#161D30' }}>{d}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label style={labelStyle}>TYPE</label>
-                  <select value={resForm.type} onChange={e => setResForm(p => ({ ...p, type: e.target.value }))} className="input-field" style={{ appearance: 'none' }}>
-                    {RESOURCE_TYPES.map(t => <option key={t} value={t} style={{ background: '#112240' }}>{t}</option>)}
+                  <label style={labelSt}>Type</label>
+                  <select value={resForm.type} onChange={e => setResForm(p => ({ ...p, type: e.target.value }))} className="adm-input" style={{ ...inputStyle, appearance: 'none', cursor: 'pointer' }}>
+                    {RESOURCE_TYPES.map(t => <option key={t} value={t} style={{ background: '#161D30' }}>{t}</option>)}
                   </select>
                 </div>
               </div>
               <div>
-                <label style={labelStyle}>URL</label>
-                <input value={resForm.url} onChange={e => setResForm(p => ({ ...p, url: e.target.value }))} placeholder="https://..." className="input-field" />
+                <label style={labelSt}>URL</label>
+                <input value={resForm.url} onChange={e => setResForm(p => ({ ...p, url: e.target.value }))} placeholder="https://..." className="adm-input" style={inputStyle} />
               </div>
               <div>
-                <label style={labelStyle}>DESCRIPTION <span style={{ color: '#8a9bb5', fontSize: '0.65rem' }}>(optional)</span></label>
-                <input value={resForm.description} onChange={e => setResForm(p => ({ ...p, description: e.target.value }))} placeholder="Short description" className="input-field" />
+                <label style={labelSt}>Description <span style={{ color: T.text3, textTransform: 'none' }}>(optional)</span></label>
+                <input value={resForm.description} onChange={e => setResForm(p => ({ ...p, description: e.target.value }))} placeholder="Short description" className="adm-input" style={inputStyle} />
               </div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', fontSize: '0.82rem', color: '#8a9bb5' }}>
-                <input type="checkbox" checked={resForm.is_public} onChange={e => setResForm(p => ({ ...p, is_public: e.target.checked }))} style={{ accentColor: '#c9a84c' }} />
-                Make publicly visible (no login required)
+              <label style={{ display: 'flex', alignItems: 'center', gap: '.65rem', cursor: 'pointer', fontSize: '.83rem', color: T.text2, fontFamily: T.body }}>
+                <input type="checkbox" checked={resForm.is_public} onChange={e => setResForm(p => ({ ...p, is_public: e.target.checked }))} style={{ accentColor: T.indigo, width: 15, height: 15 }} />
+                Make publicly visible
               </label>
-              {resError && <div style={errorStyle}>{resError}</div>}
-              <button onClick={uploadResource} disabled={resSaving} className="btn-primary" style={{ justifyContent: 'center' }}>
-                {resSaving ? 'Uploading...' : 'Upload Resource →'}
+              {resError && <div style={errSt}>{resError}</div>}
+              <button onClick={uploadResource} disabled={resSaving} style={primaryBtn}>
+                {resSaving ? 'Uploading...' : 'Upload →'}
               </button>
             </div>
           </div>
 
-          {/* Existing resources */}
+          {/* List */}
           <div>
-            <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: '#f8f6f0', marginBottom: '1rem' }}>
+            <div style={{ fontFamily: T.mono, fontSize: '.65rem', color: T.text3, letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: '1rem' }}>
               All Resources ({resources.length})
-            </h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', maxHeight: 520, overflowY: 'auto', paddingRight: '0.25rem' }}>
-              {resources.length === 0 && <p style={{ color: '#8a9bb5', fontSize: '0.83rem' }}>No resources uploaded yet.</p>}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '.6rem', maxHeight: 520, overflowY: 'auto' }}>
+              {resources.length === 0 && <p style={{ color: T.text3, fontSize: '.83rem' }}>No resources yet.</p>}
               {resources.map(r => (
-                <div key={r.id} style={{
-                  background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(201,168,76,0.1)',
-                  borderRadius: 6, padding: '0.85rem 1rem',
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                }}>
+                <div key={r.id} style={{ ...cardSt, padding: '.9rem 1.1rem', display: 'flex', alignItems: 'center', gap: '.75rem' }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                      <span style={{ fontSize: '0.62rem', padding: '0.1rem 0.4rem', border: '1px solid rgba(201,168,76,0.25)', borderRadius: 2, color: '#c9a84c', fontFamily: "'DM Mono', monospace", flexShrink: 0 }}>{r.type}</span>
-                      <span style={{ fontWeight: 600, fontSize: '0.83rem', color: '#f8f6f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.title}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.25rem' }}>
+                      <span style={{ fontFamily: T.mono, fontSize: '.6rem', padding: '.12rem .45rem', border: '1px solid rgba(99,102,241,.3)', borderRadius: 4, color: '#A5B4FC', background: 'rgba(99,102,241,.08)', flexShrink: 0 }}>{r.type}</span>
+                      <span style={{ fontWeight: 600, fontSize: '.85rem', color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.title}</span>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                      <span style={{ fontSize: '0.72rem', color: '#8a9bb5' }}>{r.domain || 'General'}</span>
-                      <span style={{ fontSize: '0.68rem', color: r.is_public ? '#4ade80' : '#8a9bb5' }}>{r.is_public ? '🌐 Public' : '🔒 Members'}</span>
+                    <div style={{ display: 'flex', gap: '.6rem', alignItems: 'center' }}>
+                      <span style={{ fontSize: '.72rem', color: T.text2 }}>{r.domain || 'General'}</span>
+                      <span style={{ fontSize: '.68rem', color: r.is_public ? T.green : T.text3, fontFamily: T.mono }}>{r.is_public ? '● Public' : '○ Members'}</span>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0, marginLeft: '0.75rem' }}>
-                    <a href={r.url} target="_blank" rel="noreferrer" style={{
-                      fontSize: '0.72rem', padding: '0.2rem 0.55rem',
-                      border: '1px solid rgba(201,168,76,0.25)', borderRadius: 3,
-                      color: '#c9a84c', textDecoration: 'none', transition: 'all 0.15s',
-                    }}>↗</a>
-                    <button onClick={() => deleteResource(r.id)} style={{
-                      background: 'none', border: '1px solid rgba(239,68,68,0.2)',
-                      borderRadius: 3, color: '#fca5a5', cursor: 'pointer',
-                      fontSize: '0.72rem', padding: '0.2rem 0.55rem', transition: 'all 0.15s',
-                    }}>✕</button>
+                  <div style={{ display: 'flex', gap: '.4rem', flexShrink: 0 }}>
+                    <a href={r.url} target="_blank" rel="noreferrer" style={{ fontFamily: T.mono, fontSize: '.72rem', padding: '.25rem .55rem', border: `1px solid ${T.border2}`, borderRadius: 5, color: T.text2, textDecoration: 'none', transition: 'all .15s' }}>↗</a>
+                    <button onClick={() => deleteResource(r.id)} className="adm-del" style={{ background: 'none', border: `1px solid ${T.border}`, borderRadius: 5, color: T.text3, cursor: 'pointer', fontSize: '.72rem', padding: '.25rem .55rem', transition: 'all .15s', fontFamily: T.mono }}>✕</button>
                   </div>
                 </div>
               ))}
@@ -422,15 +424,15 @@ export default function AdminPanel({ adminId }: { adminId: string }) {
   )
 }
 
-const labelStyle: React.CSSProperties = {
-  display: 'block', fontSize: '0.72rem',
-  color: '#8a9bb5', marginBottom: '0.4rem',
-  letterSpacing: '0.5px', fontFamily: "'DM Mono', monospace",
+const primaryBtn: React.CSSProperties = {
+  width: '100%', padding: '.85rem 1.5rem',
+  background: 'linear-gradient(90deg,#F97316,#FBBF24)',
+  color: '#0B0F19', fontWeight: 700, fontSize: '.88rem',
+  border: 'none', borderRadius: 24, cursor: 'pointer',
+  fontFamily: "'DM Sans', sans-serif",
+  transition: 'opacity .2s, transform .2s',
 }
-
-const errorStyle: React.CSSProperties = {
-  background: 'rgba(239,68,68,0.1)',
-  border: '1px solid rgba(239,68,68,0.3)',
-  borderRadius: 6, padding: '0.65rem 0.85rem',
-  color: '#fca5a5', fontSize: '0.8rem',
+const errSt: React.CSSProperties = {
+  background: 'rgba(248,113,113,.08)', border: '1px solid rgba(248,113,113,.25)',
+  borderRadius: 8, padding: '.6rem .9rem', color: '#FCA5A5', fontSize: '.8rem',
 }
